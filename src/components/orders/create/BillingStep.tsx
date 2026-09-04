@@ -359,12 +359,12 @@ export function BillingStep({
                           >
 
                             <span className="text-muted-foreground">
-                              {addOn.name}
+                              {addOn.name} × {addOn.quantity}
                             </span>
 
                             <span>
                               {formatCurrency(
-                                addOn.price,
+                                addOn.price * addOn.quantity,
                               )}
                             </span>
 

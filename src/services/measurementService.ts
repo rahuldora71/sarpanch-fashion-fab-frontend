@@ -36,18 +36,14 @@ export async function getMeasurementFieldDefinitions(
   sort = "name,asc",
 ): Promise<MeasurementFieldDefinition[]> {
   const response = await apiClient.get<
-    MeasurementFieldDefinition[] |
-    PageResponse<MeasurementFieldDefinition>
-  >(
-    "/fields",
-    {
-      params: {
-        page,
-        size,
-        sort,
-      },
+    MeasurementFieldDefinition[] | PageResponse<MeasurementFieldDefinition>
+  >("/fields", {
+    params: {
+      page,
+      size,
+      sort,
     },
-  );
+  });
 
   const data = response.data;
 
@@ -65,10 +61,9 @@ export async function getMeasurementFieldDefinitions(
 export async function getServiceMeasurementConfig(
   serviceId: number,
 ): Promise<ServiceMeasurementConfig> {
-  const response =
-    await apiClient.get<ServiceMeasurementConfig>(
-      `/services/${serviceId}`,
-    );
+  const response = await apiClient.get<ServiceMeasurementConfig>(
+    `/services/${serviceId}`,
+  );
 
   return response.data;
 }
@@ -77,23 +72,31 @@ export async function getServiceMeasurementConfig(
    LATEST CUSTOMER MEASUREMENT
    ========================================================= */
 
+/**
+ * Get the latest measurement for a customer and service.
+ *
+ * GET:
+ * /api/v1/garment-measurements/customer/{userId}/service/{serviceId}/latest
+ */
 export async function getLatestMeasurement(
   customerId: number,
   serviceId: number,
 ): Promise<MeasurementSourceSummary | null> {
   try {
-    const response =
-      await apiClient.get<MeasurementSourceSummary>(
-        `/measurements/customer/${customerId}/service/${serviceId}/latest`,
-      );
+    const response = await apiClient.get<MeasurementSourceSummary>(
+      `/garment-measurements/customer/${customerId}/service/${serviceId}/latest`,
+    );
 
     return response.data;
   } catch (error: unknown) {
     /*
-     * 404 means the customer simply doesn't
-     * have a previous measurement.
+     * 404 means the customer does not have
+     * a previous measurement for this service.
      */
-    if (axios.isAxiosError(error) && error.response?.status === 404) {
+    if (
+      axios.isAxiosError(error) &&
+      error.response?.status === 404
+    ) {
       return null;
     }
 
@@ -101,42 +104,24 @@ export async function getLatestMeasurement(
   }
 }
 
-/**
- * Retrieves every latest measurement available for a customer in one request.
- * Unlike the per-service endpoint, a missing history for one service does not
- * produce a 404 response.
- */
-export async function getLatestMeasurementsPerService(
-  customerId: number,
-): Promise<MeasurementSourceSummary[]> {
-  const response = await apiClient.get<
-    Array<
-      Omit<MeasurementSourceSummary, "id" | "userId"> & {
-        measurementId: number;
-      }
-    >
-  >(`/measurements/customer/${customerId}/latest-per-service`);
-
-  return response.data.map((measurement) => ({
-    ...measurement,
-    id: measurement.measurementId,
-  }));
-}
-
 /* =========================================================
    MEASUREMENT COPY SOURCES
    ========================================================= */
 
+/**
+ * Get measurement sources that can be used to copy
+ * measurements for the target service.
+ *
+ * GET:
+ * /api/v1/garment-measurements/customer/{userId}/service/{serviceId}/copy-sources
+ */
 export async function getMeasurementCopySources(
   customerId: number,
   serviceId: number,
 ): Promise<MeasurementSourceSummary[]> {
-  const response =
-    await apiClient.get<
-      MeasurementSourceSummary[]
-    >(
-      `/measurements/customer/${customerId}/service/${serviceId}/copy-sources`,
-    );
+  const response = await apiClient.get<MeasurementSourceSummary[]>(
+    `/garment-measurements/customer/${customerId}/service/${serviceId}/copy-sources`,
+  );
 
   return response.data;
 }
@@ -145,12 +130,119 @@ export async function getMeasurementCopySources(
    GET MEASUREMENT BY ID
    ========================================================= */
 
+/**
+ * GET:
+ * /api/v1/garment-measurements/{measurementId}
+ */
 export async function getMeasurement(
   measurementId: number,
 ): Promise<MeasurementResponse> {
+  const response = await apiClient.get<MeasurementResponse>(
+    `/garment-measurements/${measurementId}`,
+  );
+
+  return response.data;
+}
+
+/* =========================================================
+   GET MEASUREMENT BY GARMENT
+   ========================================================= */
+
+/**
+ * Get the measurement belonging to a specific garment.
+ *
+ * GET:
+ * /api/v1/garment-measurements/garment/{garmentId}
+ */
+export async function getMeasurementByGarment(
+  garmentId: number,
+): Promise<MeasurementResponse> {
+  const response = await apiClient.get<MeasurementResponse>(
+    `/garment-measurements/garment/${garmentId}`,
+  );
+
+  return response.data;
+}
+
+/* =========================================================
+   GET CUSTOMER MEASUREMENT HISTORY
+   ========================================================= */
+
+/**
+ * Get all measurements of a customer.
+ *
+ * GET:
+ * /api/v1/garment-measurements/customer/{userId}
+ */
+export async function getCustomerMeasurements(
+  customerId: number,
+  page = 0,
+  size = 20,
+  sort = "createdAt,desc",
+): Promise<PageResponse<MeasurementResponse>> {
+  const response = await apiClient.get<PageResponse<MeasurementResponse>>(
+    `/garment-measurements/customer/${customerId}`,
+    {
+      params: {
+        page,
+        size,
+        sort,
+      },
+    },
+  );
+
+  return response.data;
+}
+
+/* =========================================================
+   GET CUSTOMER + SERVICE MEASUREMENT HISTORY
+   ========================================================= */
+
+/**
+ * Get measurement history for a customer and service.
+ *
+ * GET:
+ * /api/v1/garment-measurements/customer/{userId}/service/{serviceId}
+ */
+export async function getCustomerServiceMeasurements(
+  customerId: number,
+  serviceId: number,
+  page = 0,
+  size = 20,
+  sort = "createdAt,desc",
+): Promise<PageResponse<MeasurementResponse>> {
   const response =
-    await apiClient.get<MeasurementResponse>(
-      `/measurements/${measurementId}`,
+    await apiClient.get<PageResponse<MeasurementResponse>>(
+      `/garment-measurements/customer/${customerId}/service/${serviceId}`,
+      {
+        params: {
+          page,
+          size,
+          sort,
+        },
+      },
+    );
+
+  return response.data;
+}
+
+/* =========================================================
+   GET LATEST MEASUREMENT FOR EVERY SERVICE
+   ========================================================= */
+
+/**
+ * Get the latest measurement for each service
+ * belonging to a customer.
+ *
+ * GET:
+ * /api/v1/garment-measurements/customer/{userId}/latest-per-service
+ */
+export async function getLatestMeasurementsPerService(
+  customerId: number,
+): Promise<MeasurementSourceSummary[]> {
+  const response =
+    await apiClient.get<MeasurementSourceSummary[]>(
+      `/garment-measurements/customer/${customerId}/latest-per-service`,
     );
 
   return response.data;
@@ -160,14 +252,17 @@ export async function getMeasurement(
    CREATE MEASUREMENT
    ========================================================= */
 
+/**
+ * POST:
+ * /api/v1/garment-measurements
+ */
 export async function createMeasurement(
   data: MeasurementRequest,
 ): Promise<MeasurementResponse> {
-  const response =
-    await apiClient.post<MeasurementResponse>(
-      "/measurements",
-      data,
-    );
+  const response = await apiClient.post<MeasurementResponse>(
+    "/garment-measurements",
+    data,
+  );
 
   return response.data;
 }
@@ -176,14 +271,46 @@ export async function createMeasurement(
    UPDATE MEASUREMENT
    ========================================================= */
 
+/**
+ * PATCH:
+ * /api/v1/garment-measurements/{measurementId}
+ */
 export async function updateMeasurement(
   measurementId: number,
   data: MeasurementUpdateRequest,
 ): Promise<MeasurementResponse> {
   const response =
     await apiClient.patch<MeasurementResponse>(
-      `/measurements/${measurementId}`,
+      `/garment-measurements/${measurementId}`,
       data,
+    );
+
+  return response.data;
+}
+
+/* =========================================================
+   LOCK / UNLOCK MEASUREMENT
+   ========================================================= */
+
+/**
+ * Lock or unlock a measurement.
+ *
+ * PATCH:
+ * /api/v1/garment-measurements/{measurementId}/editable?editable=true
+ */
+export async function updateMeasurementEditableStatus(
+  measurementId: number,
+  editable: boolean,
+): Promise<MeasurementResponse> {
+  const response =
+    await apiClient.patch<MeasurementResponse>(
+      `/garment-measurements/${measurementId}/editable`,
+      null,
+      {
+        params: {
+          editable,
+        },
+      },
     );
 
   return response.data;
@@ -193,10 +320,14 @@ export async function updateMeasurement(
    DELETE MEASUREMENT
    ========================================================= */
 
+/**
+ * DELETE:
+ * /api/v1/garment-measurements/{measurementId}
+ */
 export async function deleteMeasurement(
   measurementId: number,
 ): Promise<void> {
   await apiClient.delete(
-    `/measurements/${measurementId}`,
+    `/garment-measurements/${measurementId}`,
   );
 }

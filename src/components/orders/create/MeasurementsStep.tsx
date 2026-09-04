@@ -4,9 +4,9 @@ import { Loader2, Ruler } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 import {
+  getLatestMeasurement,
   getMeasurementCopySources,
   getMeasurementFieldDefinitions,
-  getLatestMeasurementsPerService,
   getServiceMeasurementConfig,
 } from "@/services/measurementService";
 
@@ -271,51 +271,52 @@ export function MeasurementsStep({
     const selectedCustomerId = customerId;
 
     async function loadLatest() {
-      const loadingState = Object.fromEntries(
-        serviceIds.map((serviceId) => [serviceId, true]),
+      await Promise.all(
+        serviceIds.map(async (serviceId) => {
+          setLoadingLatest((current) => ({
+            ...current,
+            [serviceId]: true,
+          }));
+
+          try {
+            const latest =
+              await getLatestMeasurement(
+                selectedCustomerId,
+                serviceId,
+              );
+
+            if (!cancelled) {
+              setLatestMeasurements(
+                (current) => ({
+                  ...current,
+                  [serviceId]: latest,
+                }),
+              );
+            }
+          } catch (error) {
+            console.error(
+              `Failed to load latest measurement for service ${serviceId}:`,
+              error,
+            );
+
+            if (!cancelled) {
+              setLatestMeasurements(
+                (current) => ({
+                  ...current,
+                  [serviceId]: null,
+                }),
+              );
+            }
+          } finally {
+            if (!cancelled) {
+              setLoadingLatest((current) => ({
+                ...current,
+                [serviceId]: false,
+              }));
+            }
+          }
+        }),
       );
-      setLoadingLatest(loadingState);
-
-      try {
-        const latestByService =
-          await getLatestMeasurementsPerService(
-            selectedCustomerId,
-          );
-
-        if (!cancelled) {
-          const measurementsByService = Object.fromEntries(
-            serviceIds.map((serviceId) => [
-              serviceId,
-              latestByService.find(
-                (measurement) => measurement.serviceId === serviceId,
-              ) ?? null,
-            ]),
-          );
-
-          setLatestMeasurements(measurementsByService);
-        }
-      } catch (error) {
-        console.error(
-          "Failed to load latest measurements:",
-          error,
-        );
-
-        if (!cancelled) {
-          setLatestMeasurements(
-            Object.fromEntries(
-              serviceIds.map((serviceId) => [serviceId, null]),
-            ),
-          );
-        }
-      } finally {
-        if (!cancelled) {
-          setLoadingLatest(
-            Object.fromEntries(
-              serviceIds.map((serviceId) => [serviceId, false]),
-            ),
-          );
-        }
-      }
     }
 
     void loadLatest();

@@ -28,7 +28,7 @@ export interface ServiceMeasurementConfig {
 
 export interface MeasurementSourceSummary {
   id: number;
-  userId?: number;
+  userId: number;
   serviceId: number;
   serviceName: string;
   measurementFields: MeasurementFieldValues;

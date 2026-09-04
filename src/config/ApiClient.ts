@@ -34,17 +34,14 @@
 import axios from "axios";
 import { store } from "@/app/store";
 
-const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
+function createApiClient(baseURL: string) {
+  const client = axios.create({
+    baseURL,
+    headers: { "Content-Type": "application/json" },
+    withCredentials: true,
+  });
 
-  headers: {
-    "Content-Type": "application/json",
-  },
-
-  withCredentials: true,
-});
-
-apiClient.interceptors.request.use(
+  client.interceptors.request.use(
   (config) => {
     const token =
       store.getState().auth.accessToken;
@@ -76,6 +73,17 @@ apiClient.interceptors.request.use(
   (error) => {
     return Promise.reject(error);
   },
+  );
+
+  return client;
+}
+
+/** Existing versioned API: http://localhost:8082/api/v1 */
+const apiClient = createApiClient(import.meta.env.VITE_API_BASE_URL);
+
+/** Root API used by the aggregate order and measurement-profile endpoints. */
+export const apiRootClient = createApiClient(
+  import.meta.env.VITE_API_BASE_URL_ROOT ?? "http://localhost:8082",
 );
 
 export default apiClient;

@@ -1,4 +1,5 @@
 import apiClient from "@/config/ApiClient";
+import { apiRootClient } from "@/config/ApiClient";
 
 import type {
     GarmentStatus,
@@ -63,6 +64,34 @@ export interface GarmentMeasurementRequest {
     editable?: boolean;
 }
 
+// Aggregate order contract exposed by POST /api/orders.
+export interface AggregateOrderRequest {
+    customerId: number;
+    orderDate: string;
+    sampleBookPageNumber?: string;
+    garments: Array<{
+        serviceId: number;
+        sampleNumber: string;
+        dueDate: string;
+        customerFabric: boolean;
+        measurementId: number;
+        addOns?: Array<{ addOnId: number; quantity: number }>;
+        note?: string;
+    }>;
+    additionalCharges?: AdditionalChargeRequest[];
+    payment: {
+        amount: number;
+        paymentMethod: BillingPaymentMethod;
+        note?: string;
+    };
+}
+
+export interface AggregateOrderResponse {
+    id: number;
+    totalAmount: number;
+    paidAmount: number;
+    balanceAmount: number;
+}
 
 // =========================================================
 // CONSTANTS
@@ -230,17 +259,19 @@ export const orderService = {
     async addCharge(
         orderId: number,
         data: AdditionalChargeRequest,
-    ): Promise<void> {
-        await apiClient.post(
+    ): Promise<unknown> {
+        const response = await apiClient.post(
             `/payments/order/${orderId}/charges`,
             data,
         );
+        return response.data;
     },
 
     async createPayment(
         data: PaymentRequest,
-    ): Promise<void> {
-        await apiClient.post("/payments", data);
+    ): Promise<unknown> {
+        const response = await apiClient.post("/payments", data);
+        return response.data;
     },
 
     async createGarment(data: GarmentRequest): Promise<GarmentResponse> {
@@ -248,14 +279,16 @@ export const orderService = {
         return response.data;
     },
 
-    async addGarmentAddOn(data: GarmentAddOnRequest): Promise<void> {
-        await apiClient.post("/garment-addons", data);
+    async addGarmentAddOn(data: GarmentAddOnRequest): Promise<unknown> {
+        const response = await apiClient.post("/garment-addons", data);
+        return response.data;
     },
 
     async createGarmentMeasurement(
         data: GarmentMeasurementRequest,
-    ): Promise<void> {
-        await apiClient.post("/garment-measurements", data);
+    ): Promise<unknown> {
+        const response = await apiClient.post("/garment-measurements", data);
+        return response.data;
     },
 
 
@@ -398,4 +431,39 @@ export const orderService = {
         return response.data;
     },
 
+};
+
+/**
+ * Endpoints from the newer aggregate-order backend. They deliberately use the
+ * root API client because their paths begin with /api, not /api/v1.
+ */
+export const aggregateOrderService = {
+    async createOrder(data: AggregateOrderRequest): Promise<AggregateOrderResponse> {
+        const response = await apiRootClient.post<AggregateOrderResponse>("/api/orders", data);
+        return response.data;
+    },
+
+    async createMeasurementProfile(customerId: number, serviceId: number, name: string): Promise<number> {
+        const response = await apiRootClient.post<number>(
+            `/api/customers/${customerId}/measurements/profiles`,
+            { serviceId, name },
+        );
+        return response.data;
+    },
+
+    async createMeasurementVersion(customerId: number, profileId: number, measurementFields: Record<string, string | number | null>, note?: string): Promise<{ id: number }> {
+        const response = await apiRootClient.post<{ id: number }>(
+            `/api/customers/${customerId}/measurements/versions`,
+            { profileId, measurementFields, note },
+        );
+        return response.data;
+    },
+
+    async createMeasurementVersionFromExisting(customerId: number, measurementId: number, measurementFields: Record<string, string | number | null>, note?: string): Promise<{ id: number }> {
+        const response = await apiRootClient.post<{ id: number }>(
+            `/api/customers/${customerId}/measurements/${measurementId}/versions`,
+            { measurementFields, note },
+        );
+        return response.data;
+    },
 };

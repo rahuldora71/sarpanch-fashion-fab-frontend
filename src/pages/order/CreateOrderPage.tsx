@@ -18,7 +18,10 @@ import {
   searchCustomers,
 } from "@/services/CustomerService";
 
-import { submitOrder } from "@/services/orderSubmissionService";
+import {
+  getOrderSubmissionErrorMessage,
+  submitOrder,
+} from "@/services/orderSubmissionService";
 
 import {
   loadOrderDraft,
@@ -97,7 +100,7 @@ function garmentTotal(
     Number(garment.price ?? 0) +
     garment.addOns.reduce(
       (sum, addOn) =>
-        sum + Number(addOn.price ?? 0),
+        sum + Number(addOn.price ?? 0) * Math.max(1, Number(addOn.quantity) || 1),
       0,
     )
   );
@@ -303,6 +306,14 @@ export default function CreateOrderPage() {
   const [billing, setBilling] = useState<BillingDraft>(() =>
     normalizeBilling(initialDraft?.billing),
   );
+
+  const billableTotal = useMemo(() => {
+    const additionalCharges = billing.additionalCharges.reduce(
+      (sum, charge) => sum + Math.max(0, Number(charge.amount) || 0),
+      0,
+    );
+    return Math.max(0, subtotal + additionalCharges - Math.max(0, Number(billing.discount) || 0));
+  }, [subtotal, billing.additionalCharges, billing.discount]);
   /* =======================================================
      SAVE ORDER DRAFT
      ======================================================= */
@@ -575,10 +586,11 @@ export default function CreateOrderPage() {
 
         price: Number(garment.price || 0),
 
-        addOns: (garment.addOns ?? []).map(
-          (addOn) => ({
-            name: addOn.name,
-            price: Number(addOn.price || 0),
+          addOns: (garment.addOns ?? []).map(
+            (addOn) => ({
+              name: addOn.name,
+              price: Number(addOn.price || 0),
+              quantity: Math.max(1, Number(addOn.quantity) || 1),
           })
         ),
 
@@ -586,7 +598,7 @@ export default function CreateOrderPage() {
           Number(garment.price || 0) +
           (garment.addOns ?? []).reduce(
             (sum, addOn) =>
-              sum + Number(addOn.price || 0),
+              sum + Number(addOn.price || 0) * Math.max(1, Number(addOn.quantity) || 1),
             0
           ),
       })
@@ -614,26 +626,14 @@ export default function CreateOrderPage() {
         return;
       }
 
+      if (Number(billing.advanceAmount) > billableTotal) {
+        setError(`Advance payment cannot exceed the order total of ₹${billableTotal.toFixed(2)}.`);
+        return;
+      }
+
       try {
         setSubmitting(true);
         setError(null);
-
-        /*
-         * CURRENT BACKEND CONTRACT
-         *
-         * At the moment your order-create DTO only accepts:
-         *
-         * customerId
-         * orderDate
-         * sampleBookPageNumber
-         *
-         * Therefore garments + add-ons + measurements
-         * remain safely inside the frontend draft.
-         *
-         * Once the backend order-create endpoint supports
-         * the complete order aggregate, send them as part
-         * of the same transaction.
-         */
 
         await submitOrder({
           customerId: selectedCustomer.id,
@@ -654,13 +654,9 @@ export default function CreateOrderPage() {
           err,
         );
 
-        setError(
-          "Unable to create the order. Your draft has been saved.",
-        );
-
-        toast.error(
-          "Unable to create order.",
-        );
+        const message = getOrderSubmissionErrorMessage(err);
+        setError(message);
+        toast.error(message);
       } finally {
         setSubmitting(false);
       }

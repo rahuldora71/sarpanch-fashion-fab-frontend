@@ -30,6 +30,7 @@ export interface BillingSummaryItem {
   addOns: Array<{
     name: string;
     price: number;
+    quantity: number;
   }>;
   total: number;
 }

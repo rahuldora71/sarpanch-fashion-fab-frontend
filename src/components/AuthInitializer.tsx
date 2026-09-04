@@ -17,6 +17,25 @@ interface AuthInitializerProps {
   children: ReactNode;
 }
 
+/**
+ * Ensures that only one refresh request can be
+ * in progress at a time.
+ *
+ * This is especially important in React Strict Mode,
+ * where effects may execute more than once in development.
+ */
+let refreshPromise: ReturnType<typeof refreshSession> | null = null;
+
+function refreshOnce() {
+  if (!refreshPromise) {
+    refreshPromise = refreshSession().finally(() => {
+      refreshPromise = null;
+    });
+  }
+
+  return refreshPromise;
+}
+
 export default function AuthInitializer({
   children,
 }: AuthInitializerProps) {
@@ -25,25 +44,21 @@ export default function AuthInitializer({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let mounted = true;
+
     const initialize = async () => {
       try {
-        /*
-         * The browser automatically sends the
-         * refresh_token cookie.
-         *
-         * We do NOT manually read or send it.
-         */
+        const response = await refreshOnce();
 
-        const response = await refreshSession();
+        if (!mounted) {
+          return;
+        }
 
         dispatch(setCredentials(response));
-      } catch (error) {
-        /*
-         * No valid refresh session.
-         *
-         * This is normal when the user is
-         * not logged in.
-         */
+      } catch {
+        if (!mounted) {
+          return;
+        }
 
         console.log(
           "No active authentication session."
@@ -51,17 +66,18 @@ export default function AuthInitializer({
 
         dispatch(initializeAuth());
       } finally {
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
 
     initialize();
-  }, [dispatch]);
 
-  /*
-   * Don't render the application until we've
-   * checked the backend session.
-   */
+    return () => {
+      mounted = false;
+    };
+  }, [dispatch]);
 
   if (loading) {
     return (

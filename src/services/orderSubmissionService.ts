@@ -1,15 +1,68 @@
 /**
  * Order submission workflow
  *
- * This is the one place to edit when the order-create API flow changes.
- * Change payload builders below, or append new calls after `createOrder` when
- * the backend adds garment / garment-measurement / garment-add-on endpoints.
+ * This file maps the create-order form to the API endpoints in the supplied
+ * OpenAPI specification. Keep endpoint calls here; UI components only manage
+ * user input and do not need to know API payload shapes.
  */
 import type { OrderGarment } from "@/components/orders/create/GarmentsStep";
-import { orderService } from "@/services/orderService";
+import {
+  aggregateOrderService,
+  type AggregateOrderRequest,
+} from "@/services/orderService";
 import type { BillingDraft } from "@/types/billing";
 import type { MeasurementDraft } from "@/types/measurement";
-import type { OrderResponse } from "@/types/order";
+import axios from "axios";
+
+const ORDER_LOG_PREFIX = "[Order API]";
+
+function logRequest(endpoint: string, payload: unknown): void {
+  console.groupCollapsed(`${ORDER_LOG_PREFIX} REQUEST ${endpoint}`);
+  console.log("payload:", payload);
+  console.groupEnd();
+}
+
+function logResponse(endpoint: string, response: unknown): void {
+  console.groupCollapsed(`${ORDER_LOG_PREFIX} RESPONSE ${endpoint}`);
+  console.log("data:", response);
+  console.groupEnd();
+}
+
+function logFailure(endpoint: string, error: unknown): void {
+  console.group(`${ORDER_LOG_PREFIX} FAILED ${endpoint}`);
+  if (axios.isAxiosError(error)) {
+    console.error("status:", error.response?.status);
+    console.error("response:", error.response?.data);
+  } else {
+    console.error(error);
+  }
+  console.groupEnd();
+}
+
+export function getOrderSubmissionErrorMessage(error: unknown): string {
+  if (!axios.isAxiosError(error)) {
+    return "Unable to create the order. Your draft has been saved.";
+  }
+
+  if (error.response?.status === 401) {
+    return "Your session has expired. Please sign in again, then retry creating the order.";
+  }
+
+  const response = error.response?.data;
+  if (response && typeof response === "object") {
+    const message = "message" in response ? response.message : undefined;
+    if (typeof message === "string" && message.trim()) {
+      return message;
+    }
+
+    const detail = "detail" in response ? response.detail : undefined;
+    if (typeof detail === "string" && detail.trim()) {
+      return detail;
+    }
+  }
+
+  return "Unable to create the order. Your draft has been saved.";
+}
 
 export interface SubmitOrderInput {
   customerId: number;
@@ -20,8 +73,55 @@ export interface SubmitOrderInput {
 }
 
 export interface SubmitOrderResult {
-  order: OrderResponse;
-  garmentIds: number[];
+  order: { id: number; totalAmount: number; paidAmount: number; balanceAmount: number };
+}
+
+function optionalText(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed || undefined;
+}
+
+function hasMeasurementValues(measurement: MeasurementDraft | undefined): boolean {
+  return Boolean(measurement && Object.keys(measurement.measurementFields).length > 0);
+}
+
+/**
+ * The aggregate order API requires an existing measurement version. A copied
+ * measurement becomes a new version; newly entered values create a profile
+ * and its first version.
+ */
+async function resolveMeasurementId(
+  customerId: number,
+  garment: OrderGarment,
+  measurement: MeasurementDraft | undefined,
+): Promise<number> {
+  if (!measurement || !hasMeasurementValues(measurement)) {
+    throw new Error(`Enter or copy measurements for ${garment.serviceName || "each garment"}.`);
+  }
+
+  const note = optionalText(measurement.note);
+  if (measurement.sourceMeasurementId) {
+    const version = await aggregateOrderService.createMeasurementVersionFromExisting(
+      customerId,
+      measurement.sourceMeasurementId,
+      measurement.measurementFields,
+      note,
+    );
+    return version.id;
+  }
+
+  const profileId = await aggregateOrderService.createMeasurementProfile(
+    customerId,
+    garment.serviceId!,
+    `${garment.serviceName || "Garment"} measurements`,
+  );
+  const version = await aggregateOrderService.createMeasurementVersion(
+    customerId,
+    profileId,
+    measurement.measurementFields,
+    note,
+  );
+  return version.id;
 }
 
 export async function submitOrder({
@@ -31,82 +131,63 @@ export async function submitOrder({
   measurements,
   billing,
 }: SubmitOrderInput): Promise<SubmitOrderResult> {
-  // 1. Create the root order record.
-  const order = await orderService.createOrder({
-    customerId,
-    orderDate,
-    sampleBookPageNumber: garments[0]?.pageNumber.trim() || "",
-  });
+  console.group(`${ORDER_LOG_PREFIX} SUBMISSION START`);
+  console.log("customerId:", customerId);
+  console.log("orderDate:", orderDate);
+  console.log("garment count:", garments.length);
+  console.groupEnd();
 
-  // 2. Each garment must exist before its add-ons and measurement snapshot.
-  // A copied/latest measurement is intentionally saved as a new *garment*
-  // snapshot, not as another record in the customer measurement-history table.
-  const garmentIds: number[] = [];
-
-  for (const garment of garments) {
-    if (!garment.serviceId) {
+  try {
+    if (garments.some((garment) => !garment.serviceId)) {
       throw new Error("Every garment must have a tailoring service.");
     }
 
-    const createdGarment = await orderService.createGarment({
-      orderId: order.id,
-      serviceId: garment.serviceId,
-      sampleNumber: garment.sampleNumber.trim() || undefined,
-      customerFabric: Boolean(garment.sampleId.trim()),
-      dueDate: garment.dueDate || billing.deliveryDate || undefined,
-      note: garment.notes.trim() || undefined,
-    });
-    garmentIds.push(createdGarment.id);
+    const advanceAmount = Number(billing.advanceAmount);
+    if (advanceAmount <= 0) {
+      throw new Error("Enter an advance payment greater than ₹0.");
+    }
 
-    await Promise.all(
-      garment.addOns.map((addOn) =>
-        orderService.addGarmentAddOn({
-          garmentId: createdGarment.id,
+    const aggregateGarments = await Promise.all(
+      garments.map(async (garment) => ({
+        serviceId: garment.serviceId!,
+        sampleNumber: optionalText(garment.sampleNumber) ?? "1",
+        dueDate: garment.dueDate || billing.deliveryDate,
+        customerFabric: Boolean(optionalText(garment.sampleId)),
+        measurementId: await resolveMeasurementId(
+          customerId,
+          garment,
+          measurements[garment.localId],
+        ),
+        addOns: garment.addOns.map((addOn) => ({
           addOnId: addOn.id,
           quantity: Math.max(1, Number(addOn.quantity) || 1),
-          note: addOn.note?.trim() || undefined,
-        }),
-      ),
+        })),
+        note: optionalText(garment.notes),
+      })),
     );
 
-    const measurement = measurements[garment.localId];
-    if (measurement && Object.keys(measurement.measurementFields).length > 0) {
-      await orderService.createGarmentMeasurement({
-        garmentId: createdGarment.id,
-        measurementFields: measurement.measurementFields,
-        alteration: {},
-        note: measurement.note || undefined,
-        alterationNote: measurement.alterationNote || undefined,
-        editable: true,
-      });
+    if (aggregateGarments.some((garment) => !garment.dueDate)) {
+      throw new Error("Set a due date for every garment before creating the order.");
     }
+
+    const payload: AggregateOrderRequest = {
+      customerId,
+      orderDate,
+      sampleBookPageNumber: optionalText(garments[0]?.pageNumber),
+      garments: aggregateGarments as AggregateOrderRequest["garments"],
+      additionalCharges: billing.additionalCharges
+        .map((charge) => ({ description: optionalText(charge.description), amount: Number(charge.amount) }))
+        .filter((charge): charge is { description: string; amount: number } => Boolean(charge.description) && charge.amount > 0),
+      payment: { amount: advanceAmount, paymentMethod: billing.paymentMethod },
+    };
+
+    logRequest("POST /api/orders", payload);
+    const order = await aggregateOrderService.createOrder(payload);
+    logResponse("POST /api/orders", order);
+    console.info(`${ORDER_LOG_PREFIX} SUBMISSION COMPLETE`, { orderId: order.id });
+    return { order };
+  } catch (error) {
+    logFailure("order submission", error);
+    throw error;
   }
-
-  // 3. Charges must exist before a payment: the backend validates payments
-  // against its stored outstanding balance.
-  const validCharges = billing.additionalCharges.filter(
-    (charge) => charge.description.trim() && Number(charge.amount) > 0,
-  );
-
-  await Promise.all(
-    validCharges.map((charge) =>
-      orderService.addCharge(order.id, {
-        description: charge.description.trim(),
-        amount: Number(charge.amount),
-      }),
-    ),
-  );
-
-  const advanceAmount = Number(billing.advanceAmount);
-  if (advanceAmount > 0) {
-    await orderService.createPayment({
-      orderId: order.id,
-      amount: advanceAmount,
-      paymentMethod: billing.paymentMethod,
-      paymentType: "ADVANCE",
-      paidAt: new Date().toISOString(),
-    });
-  }
-
-  return { order, garmentIds };
 }
