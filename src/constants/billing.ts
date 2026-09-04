@@ -1,0 +1,3 @@
+export const BILLING_CONSTANTS = {
+  MINIMUM_ADVANCE_PERCENTAGE: 70,
+} as const;
