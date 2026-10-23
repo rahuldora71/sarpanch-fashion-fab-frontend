@@ -2,6 +2,7 @@ import type { CustomerResponse, CustomerSummary } from "@/models/Customer";
 import { CustomerSearch } from "./CustomerSearch";
 import { CustomerList } from "./CustomerList";
 import { CreateCustomerDialog } from "./CreateCustomerDialog";
+import OrderCustomerPhotoPanel from "./OrderCustomerPhotoPanel";
 
 interface CustomerStepProps {
   customers: CustomerSummary[];
@@ -23,19 +24,28 @@ export function CustomerStep({
   onCustomerCreated,
 }: CustomerStepProps) {
   return (
-    <section className="rounded-xl border bg-card p-5">
+    <section className="rounded-xl border bg-card p-5 space-y-4">
       <div>
         <h2 className="text-base font-semibold">Select Customer</h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          Select the customer for this order.
+          Select customer for this order, or capture photos for reference.
         </p>
       </div>
 
-      <div className="mt-4">
+      {/* Selected Customer Posture & Fitting Photo Panel */}
+      {selectedCustomer && (
+        <OrderCustomerPhotoPanel
+          key={selectedCustomer.id}
+          customer={selectedCustomer}
+          compact={false}
+        />
+      )}
+
+      <div>
         <CustomerSearch value={search} onChange={onSearchChange} />
       </div>
 
-      <div className="mt-3">
+      <div>
         <CustomerList
           customers={customers}
           loading={loading}
@@ -44,7 +54,7 @@ export function CustomerStep({
         />
       </div>
 
-      <div className="mt-4 border-t pt-4">
+      <div className="border-t pt-4">
         <CreateCustomerDialog onCreated={onCustomerCreated} />
       </div>
     </section>

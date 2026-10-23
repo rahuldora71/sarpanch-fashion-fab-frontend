@@ -28,3 +28,9 @@ export const uploadImage = async (
 
   return response.data;
 };
+
+export const deleteImage = async (publicId: string): Promise<void> => {
+  await apiClient.delete("/images", {
+    params: { publicId },
+  });
+};

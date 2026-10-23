@@ -71,20 +71,8 @@ export default function MobileSidebar() {
             "
           >
 
-            <span
-              className="
-                flex
-                size-9
-                items-center
-                justify-center
-                rounded-md
-                bg-primary
-                text-sm
-                font-bold
-                text-primary-foreground
-              "
-            >
-              S
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl overflow-hidden border border-primary/20 shadow-xs">
+              <img src="/icons/icon-192.png" alt="SFF" className="size-full object-cover" />
             </span>
 
             <span>

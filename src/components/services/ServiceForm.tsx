@@ -1,5 +1,4 @@
 import {
-  useEffect,
   useMemo,
   useState,
 } from "react";
@@ -39,9 +38,7 @@ import {
   MeasurementFieldPickerDialog,
 } from "./MeasurementFieldPickerDialog";
 
-import {
-  getMeasurementFields,
-} from "@/services/measurementFieldService";
+import { useMeasurementFields } from "@/hooks/useMeasurementFields";
 
 import type {
   ServiceCreateRequest,
@@ -103,15 +100,11 @@ export function ServiceForm({
     setFieldPickerOpen,
   ] = useState(false);
 
-  const [
-    measurementFields,
-    setMeasurementFields,
-  ] = useState<MeasurementField[]>([]);
-
-  const [
-    loadingFields,
-    setLoadingFields,
-  ] = useState(true);
+  const {
+    getField,
+    getFieldName,
+    loading: loadingFields,
+  } = useMeasurementFields();
 
 
   // =======================================================
@@ -148,59 +141,6 @@ const [customCategory, setCustomCategory] = useState("");
 }, [categories, value.category]);
 
 
-  // =======================================================
-  // LOAD GLOBAL MEASUREMENT FIELDS
-  // =======================================================
-
-  useEffect(() => {
-
-    let cancelled = false;
-
-    const loadFields = async () => {
-
-      try {
-
-        setLoadingFields(true);
-
-        const response =
-          await getMeasurementFields(
-            0,
-            100,
-            "name,asc",
-          );
-
-        if (!cancelled) {
-
-          setMeasurementFields(
-            response.content ?? [],
-          );
-
-        }
-
-      } catch (error) {
-
-        console.error(
-          "Unable to load measurement fields:",
-          error,
-        );
-
-      } finally {
-
-        if (!cancelled) {
-          setLoadingFields(false);
-        }
-
-      }
-
-    };
-
-    loadFields();
-
-    return () => {
-      cancelled = true;
-    };
-
-  }, []);
 
 
   // =======================================================
@@ -219,7 +159,7 @@ const [customCategory, setCustomCategory] = useState("");
     const exists =
       value.measurementFields.some(
         (item) =>
-          item.fieldId === field.id,
+          Number(item.fieldId ?? (item as any).id) === Number(field.id),
       );
 
     if (exists) {
@@ -234,13 +174,13 @@ const [customCategory, setCustomCategory] = useState("");
         field.id,
 
       unit:
-        "INCH",
+        field.unit || "INCH",
 
       required:
         true,
 
       type:
-        "number",
+        field.type || "number",
 
       displayOrder:
         value.measurementFields.length + 1,
@@ -389,14 +329,9 @@ const [customCategory, setCustomCategory] = useState("");
   // =======================================================
 
   const getMeasurementField = (
-    fieldId: number,
+    fieldId: any,
   ) => {
-
-    return measurementFields.find(
-      (field) =>
-        field.id === fieldId,
-    );
-
+    return getField(fieldId);
   };
 
 
@@ -760,15 +695,25 @@ const [customCategory, setCustomCategory] = useState("");
                     index,
                   ) => {
 
+                    const rawFieldId =
+                      field.fieldId ?? (field as any).id;
+
                     const measurement =
                       getMeasurementField(
-                        field.fieldId,
+                        rawFieldId,
+                      );
+
+                    const displayName =
+                      measurement?.name ||
+                      getFieldName(
+                        rawFieldId,
+                        `Measurement ${index + 1}`,
                       );
 
                     return (
                       <div
                         key={
-                          field.fieldId
+                          rawFieldId ?? index
                         }
                         className="
                           rounded-lg
@@ -815,8 +760,7 @@ const [customCategory, setCustomCategory] = useState("");
                             <div className="min-w-0">
 
                               <p className="truncate text-sm font-semibold">
-                                {measurement?.name ??
-                                  "Unknown measurement"}
+                                {displayName}
                               </p>
 
                               <p className="text-xs text-muted-foreground">
@@ -1148,7 +1092,7 @@ const [customCategory, setCustomCategory] = useState("");
         selectedFieldIds={
           value.measurementFields.map(
             (field) =>
-              field.fieldId,
+              Number(field.fieldId ?? (field as any).id),
           )
         }
         onSelect={

@@ -7,6 +7,7 @@ import type {
   MeasurementFieldDefinition,
   MeasurementPrimitive,
 } from "@/types/measurement";
+import { useWorkerTranslation } from "@/i18n/WorkerLanguageSynchronizer";
 
 interface MeasurementFieldInputProps {
   field: MeasurementFieldDefinition;
@@ -26,6 +27,9 @@ export function MeasurementFieldInput({
   onChange,
   required = false,
 }: MeasurementFieldInputProps) {
+  const { t } = useWorkerTranslation();
+  const displayName = t(field.name);
+
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
     onChange(event.target.value);
   };
@@ -39,7 +43,7 @@ export function MeasurementFieldInput({
   return (
     <div className="space-y-2">
       <Label htmlFor={`measurement-field-${field.id}`}>
-        {field.name}
+        {displayName}
         {required && <span className="ml-1 text-destructive">*</span>}
       </Label>
 

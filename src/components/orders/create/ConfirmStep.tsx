@@ -11,7 +11,10 @@ interface ConfirmStepProps {
   orderDate: string;
   subtotal: number;
   billing: BillingDraft;
+  orderDiscount: number;
   submitting: boolean;
+  isEditMode?: boolean;
+  existingPaidTotal?: number;
   onBack: () => void;
   onConfirm: () => void;
 }
@@ -31,7 +34,10 @@ export function ConfirmStep({
   orderDate,
   subtotal,
   billing,
+  orderDiscount,
   submitting,
+  isEditMode = false,
+  existingPaidTotal = 0,
   onBack,
   onConfirm,
 }: ConfirmStepProps) {
@@ -39,7 +45,10 @@ export function ConfirmStep({
     (sum, charge) => sum + Number(charge.amount || 0),
     0,
   );
-  const grandTotal = Math.max(0, subtotal + additionalCharges - billing.discount);
+  const grandTotal = Math.max(0, subtotal + additionalCharges - orderDiscount);
+  const newPayment = Number(billing.advanceAmount || 0);
+  const balanceDue = Math.max(0, grandTotal - existingPaidTotal - newPayment);
+
   return (
     <section className="rounded-xl border bg-card p-6">
       <div className="mb-6 flex items-center gap-3">
@@ -47,9 +56,13 @@ export function ConfirmStep({
           <CheckCircle2 className="h-5 w-5" />
         </div>
         <div>
-          <h2 className="text-lg font-semibold">Confirm Order</h2>
+          <h2 className="text-lg font-semibold">
+            {isEditMode ? "Confirm Order Changes" : "Confirm Order"}
+          </h2>
           <p className="text-sm text-muted-foreground">
-            Check the order details before creating it.
+            {isEditMode
+              ? "Review the updated order details before saving changes."
+              : "Check the order details before creating it."}
           </p>
         </div>
       </div>
@@ -68,12 +81,25 @@ export function ConfirmStep({
         </div>
 
         <div className="flex justify-between gap-4 p-4">
-          <span className="text-sm text-muted-foreground">Discount</span>
-          <span className="text-sm font-medium">{currency(billing.discount)}</span>
+          <span className="text-sm text-muted-foreground">Order discount</span>
+          <span className="text-sm font-medium">{currency(orderDiscount)}</span>
         </div>
 
+        {isEditMode && existingPaidTotal > 0 && (
+          <div className="flex justify-between gap-4 p-4 bg-muted/20">
+            <span className="text-sm text-muted-foreground">Already Paid (Preserved)</span>
+            <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+              {currency(existingPaidTotal)}
+            </span>
+          </div>
+        )}
+
         <div className="flex justify-between gap-4 p-4">
-          <span className="text-sm text-muted-foreground">Advance ({billing.paymentMethod})</span>
+          <span className="text-sm text-muted-foreground">
+            {isEditMode
+              ? `New Payment (${billing.paymentMethod})`
+              : `Advance (${billing.paymentMethod})`}
+          </span>
           <span className="text-sm font-medium">{currency(billing.advanceAmount)}</span>
         </div>
 
@@ -98,6 +124,17 @@ export function ConfirmStep({
           <span className="text-sm font-semibold">Grand total</span>
           <span className="text-lg font-bold">{currency(grandTotal)}</span>
         </div>
+
+        {isEditMode && (
+          <div className="flex justify-between gap-4 p-4 bg-orange-50/50 dark:bg-orange-950/10">
+            <span className="text-sm font-semibold text-orange-700 dark:text-orange-400">
+              Remaining Balance Due
+            </span>
+            <span className="text-lg font-bold text-orange-700 dark:text-orange-400">
+              {currency(balanceDue)}
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="mt-6 flex items-center justify-between border-t pt-5">
@@ -105,7 +142,13 @@ export function ConfirmStep({
           Back
         </Button>
         <Button type="button" onClick={onConfirm} disabled={submitting}>
-          {submitting ? "Creating..." : "Create Order"}
+          {submitting
+            ? isEditMode
+              ? "Saving..."
+              : "Creating..."
+            : isEditMode
+            ? "Save Changes"
+            : "Create Order"}
         </Button>
       </div>
     </section>

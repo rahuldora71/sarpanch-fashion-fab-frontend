@@ -37,6 +37,7 @@ import {
   searchMeasurementFields,
   updateMeasurementField,
 } from "@/services/measurementFieldService";
+import { useMeasurementFields } from "@/hooks/useMeasurementFields";
 
 import type {
   MeasurementField,
@@ -56,6 +57,12 @@ export function MeasurementFieldManagerDialog({
   open,
   onOpenChange,
 }: MeasurementFieldManagerDialogProps) {
+  const {
+    fields: globalFields,
+    upsertField,
+    deleteField,
+    refetch,
+  } = useMeasurementFields();
 
   const [fields, setFields] =
     useState<MeasurementField[]>([]);
@@ -135,7 +142,12 @@ export function MeasurementFieldManagerDialog({
 
 
   useEffect(() => {
+    if (open && !search.trim() && globalFields.length > 0 && fields.length === 0) {
+      setFields(globalFields);
+    }
+  }, [open, search, globalFields, fields.length]);
 
+  useEffect(() => {
     if (!open) {
       return;
     }
@@ -185,6 +197,8 @@ export function MeasurementFieldManagerDialog({
           name,
         });
 
+      upsertField(created);
+      void refetch(true);
 
       setFields(
         (previous) =>
@@ -274,6 +288,8 @@ export function MeasurementFieldManagerDialog({
           },
         );
 
+      upsertField(updated);
+      void refetch(true);
 
       setFields(
         (previous) =>
@@ -342,6 +358,8 @@ export function MeasurementFieldManagerDialog({
         field.id,
       );
 
+      deleteField(field.id);
+      void refetch(true);
 
       setFields(
         (previous) =>

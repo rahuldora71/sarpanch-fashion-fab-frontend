@@ -9,7 +9,7 @@ export interface MeasurementFieldDefinition {
   active?: boolean;
   unit?: string | null;
   type?: string | null;
-  displayOrder?: number;
+  displayOrder?: number | null;
 }
 
 export interface ServiceMeasurementField {
@@ -17,7 +17,7 @@ export interface ServiceMeasurementField {
   unit?: string | null;
   required?: boolean;
   type?: string | null;
-  displayOrder?: number;
+  displayOrder?: number | null;
 }
 
 export interface ServiceMeasurementConfig {
@@ -28,7 +28,12 @@ export interface ServiceMeasurementConfig {
 
 export interface MeasurementSourceSummary {
   id: number;
-  userId: number;
+  userId?: number;
+  customerId?: number;
+  customerName?: string | null;
+  customerPhone?: string | null;
+  garmentId?: number | null;
+  orderId?: number | null;
   serviceId: number;
   serviceName: string;
   measurementFields: MeasurementFieldValues;
@@ -52,17 +57,27 @@ export interface MeasurementPageResponse {
   first: boolean;
   last: boolean;
   numberOfElements: number;
-  content: MeasurementSourceSummary[];
+  content: MeasurementResponse[];
   empty: boolean;
 }
 
 export interface MeasurementDraft {
   serviceId: number;
   serviceName: string;
+
   measurementFields: MeasurementFieldValues;
+
   note: string;
   alterationNote: string;
-  sourceMeasurementId?: number | null;
+
+  /**
+   * ID of the existing measurement this draft was copied from.
+   *
+   * The ID is intentionally retained even when the user edits
+   * measurement fields. The backend decides whether the values
+   * still match the existing measurement.
+   */
+  sourceMeasurementId: number | null;
 }
 
 export interface MeasurementUpdateRequest {
@@ -76,7 +91,9 @@ export interface MeasurementRequest {
   userId: number;
   serviceId: number;
   measurementFields: MeasurementFieldValues;
+  alteration?: Record<string, unknown>;
   note?: string;
   alterationNote?: string;
   editable?: boolean;
+  takenByUserId?: number;
 }

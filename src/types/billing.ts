@@ -15,11 +15,17 @@ export interface AdditionalChargeDraft {
   amount: number;
 }
 
-export interface BillingDraft {
-  discount: number;
+export interface PaymentDraft {
   advanceAmount: number;
   paymentMethod: BillingPaymentMethod;
   deliveryDate: string;
+}
+
+/**
+ * Form-only view model. Charges are submitted with the additional-charge API,
+ * not as part of a payment request.
+ */
+export interface BillingDraft extends PaymentDraft {
   additionalCharges: AdditionalChargeDraft[];
 }
 

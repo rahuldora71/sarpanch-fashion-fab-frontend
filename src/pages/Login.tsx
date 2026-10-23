@@ -6,9 +6,15 @@ import {
   Mail,
 } from "lucide-react";
 import { useDispatch } from "react-redux";
-import {  useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
-import { setCredentials } from "@/redux/slices/authSlice";
+import {
+  setCredentials,
+  setEffectivePermissions,
+  setPermissionsLoading,
+  setPermissionsError,
+} from "@/redux/slices/authSlice";
+import { getEffectivePermissions } from "@/services/profileService";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -72,6 +78,14 @@ export default function LoginPage() {
   const response = await loginUser(loginData);
 
   dispatch(setCredentials(response));
+  dispatch(setPermissionsLoading(true));
+  try {
+    const perms = await getEffectivePermissions();
+    dispatch(setEffectivePermissions(perms));
+  } catch (permErr) {
+    console.warn("Could not load permissions:", permErr);
+    dispatch(setPermissionsError());
+  }
 
   toast.success("Login successful!");
 
@@ -148,51 +162,21 @@ export default function LoginPage() {
             "
           >
 
-            {/* Logo */}
-            <div className="flex items-center gap-3">
-
-              <div
-                className="
-                  flex
-                  size-10
-                  shrink-0
-                  items-center
-                  justify-center
-                  rounded-full
-                  bg-primary-foreground
-                  text-primary
-                  sm:size-11
-                "
-              >
-                <span className="text-sm font-bold sm:text-lg">
-                  SF
-                </span>
-              </div>
-
+            {/* Brand Logo Badge */}
+            <div className="flex items-center gap-3.5">
+              <img
+                src="/brand/logo-badge.png"
+                alt="Sarpanch Fashion Fab"
+                className="h-14 w-auto object-contain drop-shadow-md rounded-full bg-white p-1"
+              />
               <div>
-                <h1
-                  className="
-                    text-base
-                    font-bold
-                    tracking-wide
-                    sm:text-lg
-                  "
-                >
-                  SARPANCH
+                <h1 className="text-xl font-black tracking-tight text-white uppercase">
+                  Sarpanch
                 </h1>
-
-                <p
-                  className="
-                    text-[9px]
-                    tracking-[0.3em]
-                    text-primary-foreground/70
-                    sm:text-xs
-                  "
-                >
-                  FASHION FAB
+                <p className="text-[11px] font-bold tracking-widest text-white/80 uppercase">
+                  Fashion Fab · Tailor ERP
                 </p>
               </div>
-
             </div>
 
             {/* Desktop branding content */}
@@ -384,8 +368,8 @@ export default function LoginPage() {
                       Password
                     </Label>
 
-                    <a
-                      href="/forgot-password"
+                    <Link
+                      to="/forgot-password"
                       className="
                         text-sm
                         font-medium
@@ -394,7 +378,7 @@ export default function LoginPage() {
                       "
                     >
                       Forgot password?
-                    </a>
+                    </Link>
 
                   </div>
 

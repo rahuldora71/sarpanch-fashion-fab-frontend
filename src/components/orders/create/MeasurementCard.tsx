@@ -1,4 +1,4 @@
-import { Copy, Loader2, RefreshCw } from "lucide-react";
+import { Copy, Loader2, Lock, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -17,6 +17,7 @@ import type {
 interface MeasurementCardProps {
   garmentNumber: number;
   garmentName: string;
+  isLocked?: boolean;
   draft: MeasurementDraft;
   fields: MeasurementFieldDefinition[];
   requiredFieldIds: number[];
@@ -38,6 +39,7 @@ interface MeasurementCardProps {
 export function MeasurementCard({
   garmentNumber,
   garmentName,
+  isLocked = false,
   draft,
   fields,
   requiredFieldIds,
@@ -58,6 +60,15 @@ export function MeasurementCard({
   return (
     <>
       <section className="rounded-xl border bg-card p-5 shadow-sm">
+        {isLocked && (
+          <div className="mb-5 flex items-center gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <Lock className="h-4 w-4 shrink-0 text-amber-600" />
+            <span>
+              <strong>Measurements Locked</strong> — Cutting has already started for this garment. Measurements are read-only and cannot be modified.
+            </span>
+          </div>
+        )}
+
         <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h2 className="text-lg font-semibold">
@@ -65,90 +76,99 @@ export function MeasurementCard({
             </h2>
 
             <p className="mt-1 text-xs text-muted-foreground">
-              Enter the measurements for this garment.
+              {isLocked
+                ? "Viewing locked measurements for this garment."
+                : "Enter the measurements for this garment."}
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {latestMeasurement && (
+          {!isLocked && (
+            <div className="flex flex-wrap items-center gap-2">
+              {latestMeasurement && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={onUseLatest}
+                  disabled={loadingLatest}
+                >
+                  {loadingLatest ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                  )}
+                  Use latest
+                </Button>
+              )}
+
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={onUseLatest}
-                disabled={loadingLatest}
+                onClick={onOpenGarmentCopyDialog}
               >
-                {loadingLatest ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                )}
-                Use latest
+                <Copy className="mr-2 h-4 w-4" />
+                Copy from garment
               </Button>
-            )}
 
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onOpenGarmentCopyDialog}
-            >
-              <Copy className="mr-2 h-4 w-4" />
-              Copy from garment
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onOpenSourceDialog}
-            >
-              <Copy className="mr-2 h-4 w-4" />
-              Copy from old measurement
-            </Button>
-          </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onOpenSourceDialog}
+              >
+                <Copy className="mr-2 h-4 w-4" />
+                Copy from old measurement
+              </Button>
+            </div>
+          )}
         </div>
 
-        <div className="rounded-xl border bg-background p-4">
-          <MeasurementFieldsGrid
-            fields={fields}
-            values={draft.measurementFields}
-            requiredFieldIds={requiredFieldIds}
-            onChange={onChangeValues}
-          />
-        </div>
-
-        <div className="mt-5 grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor={`measurement-note-${garmentNumber}`}>
-              Measurement Note
-            </Label>
-
-            <Textarea
-              id={`measurement-note-${garmentNumber}`}
-              value={draft.note}
-              onChange={(event) => onChangeNote(event.target.value)}
-              placeholder="Optional note"
-              className="min-h-24 resize-y"
+        <fieldset
+          disabled={isLocked}
+          className={isLocked ? "pointer-events-none opacity-80" : ""}
+        >
+          <div className="rounded-xl border bg-background p-4">
+            <MeasurementFieldsGrid
+              fields={fields}
+              values={draft.measurementFields}
+              requiredFieldIds={requiredFieldIds}
+              onChange={onChangeValues}
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor={`measurement-alteration-${garmentNumber}`}>
-              Alteration Note
-            </Label>
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor={`measurement-note-${garmentNumber}`}>
+                Measurement Note
+              </Label>
 
-            <Textarea
-              id={`measurement-alteration-${garmentNumber}`}
-              value={draft.alterationNote}
-              onChange={(event) =>
-                onChangeAlterationNote(event.target.value)
-              }
-              placeholder="Optional alteration note"
-              className="min-h-24 resize-y"
-            />
+              <Textarea
+                id={`measurement-note-${garmentNumber}`}
+                value={draft.note}
+                onChange={(event) => onChangeNote(event.target.value)}
+                placeholder="Optional note"
+                className="min-h-24 resize-y"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor={`measurement-alteration-${garmentNumber}`}>
+                Alteration Note
+              </Label>
+
+              <Textarea
+                id={`measurement-alteration-${garmentNumber}`}
+                value={draft.alterationNote}
+                onChange={(event) =>
+                  onChangeAlterationNote(event.target.value)
+                }
+                placeholder="Optional alteration note"
+                className="min-h-24 resize-y"
+              />
+            </div>
           </div>
-        </div>
+        </fieldset>
       </section>
 
       <MeasurementSourceDialog

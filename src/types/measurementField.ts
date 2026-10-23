@@ -97,8 +97,10 @@ export interface MeasurementUpdateRequest {
 }
 
 export type MeasurementField = MeasurementFieldDefinition;
-export interface MeasurementFieldCreateRequest { name: string; }
-export interface MeasurementFieldUpdateRequest { name: string; }
+export interface MeasurementFieldCreateRequest {
+   name: string; }
+export interface MeasurementFieldUpdateRequest { 
+  name: string; }
 export interface MeasurementFieldPageResponse {
   content: MeasurementField[];
   totalPages: number;

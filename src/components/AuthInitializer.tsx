@@ -9,9 +9,14 @@ import { useDispatch } from "react-redux";
 import {
   initializeAuth,
   setCredentials,
+  setEffectivePermissions,
+  setPermissionsLoading,
+  setPermissionsError,
 } from "@/redux/slices/authSlice";
 
 import { refreshSession } from "@/services/AuthService";
+import { getEffectivePermissions } from "@/services/profileService";
+import { fetchMeasurementFields } from "@/redux/slices/measurementFieldSlice";
 
 interface AuthInitializerProps {
   children: ReactNode;
@@ -55,6 +60,23 @@ export default function AuthInitializer({
         }
 
         dispatch(setCredentials(response));
+
+        // Fetch dynamic permissions for authenticated user
+        dispatch(setPermissionsLoading(true));
+        try {
+          const perms = await getEffectivePermissions();
+          if (mounted) {
+            dispatch(setEffectivePermissions(perms));
+          }
+        } catch (permError) {
+          console.warn("Could not load dynamic user permissions:", permError);
+          if (mounted) {
+            // Fail closed: never assume all permissions if loading fails
+            dispatch(setPermissionsError());
+          }
+        }
+
+        dispatch(fetchMeasurementFields() as any);
       } catch {
         if (!mounted) {
           return;

@@ -1,8 +1,11 @@
 import {
-  Bell,
   ChevronRight,
   LogOut,
   Plus,
+  Download,
+  User as UserIcon,
+  Shield,
+  ChevronDown,
 } from "lucide-react";
 
 import {
@@ -22,6 +25,15 @@ import {
 
 import { Button } from "@/components/ui/button";
 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
 import type { RootState } from "@/app/store";
 
 import { logout } from "@/redux/slices/authSlice";
@@ -31,15 +43,25 @@ import { logoutUser } from "@/services/AuthService";
 import { menuItems } from "@/config/menuItems";
 
 import ThemeToggle from "./ThemeToggle";
+import LanguageSwitcher from "./LanguageSwitcher";
+import { useWorkerTranslation } from "@/i18n/WorkerLanguageSynchronizer";
+import { usePWAInstall } from "@/hooks/usePWAInstall";
+import { usePermissions } from "@/hooks/usePermissions";
 
 export default function Navbar() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const location = useLocation();
+  const { t } = useWorkerTranslation();
+  const { isInstallable, promptInstall } = usePWAInstall();
+  const { isAdmin, hasPermission } = usePermissions();
 
   const user = useSelector(
     (state: RootState) => state.auth.user
   );
+
+  const canCreateOrders = isAdmin || hasPermission("orders", "CREATE");
+  const canViewRoles = isAdmin || hasPermission("roles_permissions", "VIEW");
 
   // =========================================================
   // CURRENT PAGE
@@ -49,8 +71,9 @@ export default function Navbar() {
     (item) => item.href === location.pathname
   );
 
-  const pageName =
-    currentMenuItem?.label ?? "Dashboard";
+  const pageName = t(
+    currentMenuItem?.label ?? "Dashboard"
+  );
 
   // =========================================================
   // LOGOUT
@@ -100,263 +123,220 @@ export default function Navbar() {
         sticky
         top-0
         z-30
-        flex
-        h-14
+        h-16
         w-full
-        items-center
         border-b
-        border-border
-        bg-background
+        border-border/80
+        bg-background/85
+        backdrop-blur-xl
+        transition-colors
       "
     >
       <div
         className="
           flex
           h-full
-          w-full
           items-center
           justify-between
-          px-4
-          sm:px-5
-          lg:px-6
+          px-3
+          sm:px-6
         "
       >
 
         {/* =================================================
-            LEFT
+            LEFT: BREADCRUMBS
         ================================================= */}
 
-        <div className="flex min-w-0 items-center">
-
-          {/* Mobile Logo */}
-
-          <div
-            className="
-              mr-3
-              flex
-              size-7
-              shrink-0
-              items-center
-              justify-center
-              rounded
-              bg-primary
-              text-[10px]
-              font-bold
-              text-primary-foreground
-              md:hidden
-            "
-          >
-            SF
-          </div>
-
-
-          {/* Desktop Breadcrumb */}
-
-          <div
-            className="
-              hidden
-              items-center
-              gap-2
-              text-sm
-              md:flex
-            "
-          >
-            <button
-              type="button"
-              onClick={() =>
-                navigate("/dashboard")
-              }
-              className="
-                text-muted-foreground
-                transition-colors
-                hover:text-foreground
-              "
-            >
-              Sarpanch Fashion Fab
-            </button>
-
-            <ChevronRight
-              className="
-                size-4
-                text-muted-foreground/60
-              "
-            />
-
-            <span className="font-medium">
-              {pageName}
-            </span>
-          </div>
-
-
-          {/* Mobile Page Name */}
-
-          <span
-            className="
-              truncate
-              text-sm
-              font-semibold
-              md:hidden
-            "
-          >
-            {pageName}
+        <div className="flex items-center gap-2">
+          <span className="hidden sm:inline text-xs font-semibold uppercase tracking-wider text-muted-foreground/80">
+            SFF Tailoring
           </span>
 
+          <ChevronRight className="hidden sm:inline size-3 text-muted-foreground/60" />
+
+          <h1 className="text-base sm:text-lg font-bold tracking-tight text-foreground truncate max-w-[200px] sm:max-w-none">
+            {pageName}
+          </h1>
         </div>
 
-
         {/* =================================================
-            RIGHT
+            RIGHT: ACTIONS & PROFILE
         ================================================= */}
 
         <div
           className="
             flex
             items-center
-            gap-1
-            sm:gap-2
+            gap-1.5
+            sm:gap-2.5
           "
         >
 
-          {/* New Order */}
+          {/* New Order (requires orders.create permission) */}
+          {canCreateOrders && (
+            <>
+              <Button
+                type="button"
+                className="
+                  hidden
+                  sm:inline-flex
+                  h-10
+                  px-4
+                  rounded-xl
+                  font-semibold
+                  shadow-sm
+                  shadow-primary/25
+                  bg-primary
+                  text-primary-foreground
+                  hover:bg-primary/90
+                  active:scale-98
+                  transition
+                "
+                onClick={() => {
+                  navigate("/orders/new");
+                }}
+              >
+                <Plus className="size-4 mr-1" />
+                <span>
+                  {t("New Order")}
+                </span>
+              </Button>
 
-          <Button
-            type="button"
-            size="sm"
-            className="hidden sm:inline-flex"
-            onClick={() => {
-              toast("New Order clicked");
-            }}
-          >
-            <Plus className="size-4" />
+              {/* Mobile New Order */}
+              <Button
+                type="button"
+                size="icon"
+                className="sm:hidden h-10 w-10 rounded-xl bg-primary text-primary-foreground shadow-sm shadow-primary/25"
+                onClick={() => {
+                  navigate("/orders/new");
+                }}
+                aria-label={t("New Order")}
+              >
+                <Plus className="size-4" />
+              </Button>
+            </>
+          )}
 
-            <span>
-              New Order
-            </span>
-          </Button>
+          {/* PWA Install Button */}
+          {isInstallable && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={promptInstall}
+              className="gap-1.5 rounded-xl border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 text-xs font-semibold h-9 px-3 transition shadow-xs"
+              title="Install Sarpanch Fashion Fab on this device"
+            >
+              <Download className="size-4" />
+              <span className="hidden md:inline">Install App</span>
+            </Button>
+          )}
 
-
-          {/* Mobile New Order */}
-
-          <Button
-            type="button"
-            size="icon"
-            className="sm:hidden"
-            onClick={() => {
-              toast("New Order clicked");
-            }}
-            aria-label="New order"
-          >
-            <Plus className="size-4" />
-          </Button>
-
+          {/* Language Switcher */}
+          <LanguageSwitcher />
 
           {/* Theme */}
-
           <ThemeToggle />
 
-
-          {/* Notifications */}
-
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="relative"
-            aria-label="Notifications"
-          >
-            <Bell className="size-4" />
-
-            <span
-              className="
-                absolute
-                right-2
-                top-2
-                size-1.5
-                rounded-full
-                bg-primary
-              "
-            />
-          </Button>
-
-
           {/* Divider */}
-
           <div
             className="
               mx-1
               hidden
               h-6
               w-px
-              bg-border
+              bg-border/80
               sm:block
             "
           />
 
-
-          {/* User */}
-
-          <button
-            type="button"
-            onClick={() => {
-              toast("Profile clicked");
-            }}
-            className="
-              flex
-              items-center
-              gap-2
-              rounded-md
-              p-1.5
-              outline-none
-              transition-colors
-              hover:bg-accent
-              focus-visible:ring-2
-              focus-visible:ring-ring
-            "
-          >
-            <Avatar className="size-8">
-              <AvatarImage
-                src={
-                  user?.image ??
-                  undefined
-                }
-                alt={
-                  user?.name ??
-                  "User"
-                }
-              />
-
-              <AvatarFallback>
-                {getInitials()}
-              </AvatarFallback>
-            </Avatar>
-
-            <span
+          {/* User Profile Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              type="button"
               className="
-                hidden
-                max-w-24
-                truncate
-                text-sm
-                font-medium
-                lg:block
+                flex
+                items-center
+                gap-2
+                rounded-xl
+                p-1.5
+                pr-2
+                transition-colors
+                hover:bg-accent/60
+                outline-none
+                cursor-pointer
               "
+              aria-label="User account menu"
             >
-              {user?.name ?? "User"}
-            </span>
-          </button>
+              <div className="relative">
+                <Avatar className="size-8.5 rounded-lg border border-border/80">
+                  <AvatarImage
+                    src={user?.image ?? undefined}
+                    alt={user?.name ?? "User"}
+                  />
+                  <AvatarFallback className="rounded-lg text-xs font-bold bg-primary/10 text-primary">
+                    {getInitials()}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="absolute bottom-0 right-0 size-2 rounded-full bg-emerald-500 ring-2 ring-background" />
+              </div>
 
+              <div className="hidden flex-col text-left lg:flex">
+                <span className="max-w-28 truncate text-xs font-semibold leading-tight text-foreground">
+                  {user?.name ?? "User"}
+                </span>
+                <span className="text-[10px] text-muted-foreground leading-tight">
+                  {user?.roles?.[0]?.name?.replace("ROLE_", "") ?? "Staff"}
+                </span>
+              </div>
 
-          {/* Logout */}
+              <ChevronDown className="hidden sm:inline size-3.5 text-muted-foreground ml-0.5" />
+            </DropdownMenuTrigger>
 
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="hidden sm:inline-flex"
-            onClick={handleLogout}
-            aria-label="Logout"
-          >
-            <LogOut className="size-4" />
-          </Button>
+            <DropdownMenuContent align="end" className="w-56 rounded-2xl p-2 shadow-xl border border-border">
+              <DropdownMenuLabel className="font-normal px-2 py-1.5">
+                <div className="flex flex-col space-y-1">
+                  <p className="text-sm font-semibold leading-none text-foreground truncate">{user?.name ?? "User"}</p>
+                  <p className="text-xs leading-none text-muted-foreground truncate">{user?.email}</p>
+                  <div className="pt-1">
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-primary/10 text-primary">
+                      {user?.roles?.[0]?.name?.replace("ROLE_", "") ?? "Staff"}
+                    </span>
+                  </div>
+                </div>
+              </DropdownMenuLabel>
+
+              <DropdownMenuSeparator className="my-1.5" />
+
+              <DropdownMenuItem
+                onClick={() => navigate("/profile")}
+                className="cursor-pointer gap-2 py-2 rounded-xl text-xs font-medium"
+              >
+                <UserIcon className="size-4 text-muted-foreground" />
+                <span>My Profile</span>
+              </DropdownMenuItem>
+
+              {canViewRoles && (
+                <DropdownMenuItem
+                  onClick={() => navigate("/roles")}
+                  className="cursor-pointer gap-2 py-2 rounded-xl text-xs font-medium"
+                >
+                  <Shield className="size-4 text-muted-foreground" />
+                  <span>Roles & Permissions</span>
+                </DropdownMenuItem>
+              )}
+
+              <DropdownMenuSeparator className="my-1.5" />
+
+              <DropdownMenuItem
+                onClick={handleLogout}
+                className="cursor-pointer gap-2 py-2 rounded-xl text-xs font-medium text-destructive focus:text-destructive focus:bg-destructive/10"
+              >
+                <LogOut className="size-4" />
+                <span>Sign Out</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
         </div>
 

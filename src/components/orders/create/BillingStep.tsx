@@ -3,12 +3,16 @@ import {
 } from "react";
 
 import {
-  CalendarDays,
   ChevronDown,
   Plus,
   Trash2,
   WalletCards,
 } from "lucide-react";
+import { generateUUID } from "@/utils/uuid";
+
+import {
+  DatePicker,
+} from "@/components/ui/date-picker";
 
 import {
   Input,
@@ -48,12 +52,18 @@ import {
 import {
   BILLING_CONSTANTS,
 } from "@/constants/billing";
+import type { OrderPaymentDetails } from "@/types/order";
+
 interface BillingStepProps {
   items: BillingSummaryItem[];
   billing: BillingDraft;
+  orderDiscount: number;
   orderDate: string;
   deliveryDate: string;
+  isEditMode?: boolean;
+  existingPayments?: OrderPaymentDetails[];
   onChange: (billing: BillingDraft) => void;
+  onOrderDiscountChange: (discount: number) => void;
   onOrderDateChange: (value: string) => void;
 }
 
@@ -77,7 +87,7 @@ function formatCurrency(value: number) {
 
 function createCharge(): AdditionalChargeDraft {
   return {
-    id: crypto.randomUUID(),
+    id: generateUUID(),
     description: "",
     amount: 0,
   };
@@ -86,9 +96,13 @@ function createCharge(): AdditionalChargeDraft {
 export function BillingStep({
   items,
   billing,
+  orderDiscount,
   orderDate,
   deliveryDate,
+  isEditMode = false,
+  existingPayments = [],
   onChange,
+  onOrderDiscountChange,
   onOrderDateChange,
 }: BillingStepProps) {
   /* =========================================================
@@ -123,13 +137,27 @@ export function BillingStep({
       0,
       subtotal +
       additionalChargesTotal -
-      Number(billing.discount || 0),
+      Number(orderDiscount || 0),
     );
   }, [
     subtotal,
     additionalChargesTotal,
-    billing.discount,
+    orderDiscount,
   ]);
+
+  /* =========================================================
+     EXISTING PAID TOTAL (EDIT MODE)
+     ========================================================= */
+
+  const existingPaidTotal = useMemo(() => {
+    if (!isEditMode) return 0;
+    return existingPayments.reduce(
+      (sum, p) => sum + Number(p.amount || 0),
+      0,
+    );
+  }, [isEditMode, existingPayments]);
+
+  const maxPayableToday = Math.max(0, grandTotal - existingPaidTotal);
 
   /* =========================================================
      MINIMUM ADVANCE — 70%
@@ -152,7 +180,7 @@ export function BillingStep({
       0,
       Number(billing.advanceAmount || 0),
     ),
-    grandTotal,
+    maxPayableToday,
   );
 
   /* =========================================================
@@ -161,7 +189,7 @@ export function BillingStep({
 
   const balanceDue = Math.max(
     0,
-    grandTotal - advanceAmount,
+    grandTotal - existingPaidTotal - advanceAmount,
   );
 
   /* =========================================================
@@ -169,6 +197,7 @@ export function BillingStep({
      ========================================================= */
 
   const advanceBelowMinimum =
+    !isEditMode &&
     advanceAmount > 0 &&
     advanceAmount < minimumAdvance;
 
@@ -194,12 +223,11 @@ export function BillingStep({
   ) => {
     const amount = Number(value);
 
-    updateBilling({
-      discount:
-        Number.isFinite(amount) && amount >= 0
-          ? amount
-          : 0,
-    });
+    onOrderDiscountChange(
+      Number.isFinite(amount) && amount >= 0
+        ? amount
+        : 0,
+    );
   };
 
   /* =========================================================
@@ -214,7 +242,7 @@ export function BillingStep({
     updateBilling({
       advanceAmount:
         Number.isFinite(amount) && amount >= 0
-          ? Math.min(amount, grandTotal)
+          ? Math.min(amount, maxPayableToday)
           : 0,
     });
   };
@@ -598,7 +626,7 @@ export function BillingStep({
                 htmlFor="discount"
                 className="font-medium"
               >
-                Discount
+                Order Discount
               </Label>
 
               <div className="relative w-36">
@@ -614,7 +642,7 @@ export function BillingStep({
                   step="0.01"
                   className="border-emerald-200 bg-background pl-7 text-right dark:border-emerald-900"
                   value={
-                    billing.discount || ""
+                    orderDiscount || ""
                   }
                   onChange={(event) =>
                     handleDiscountChange(
@@ -664,11 +692,13 @@ export function BillingStep({
             <div>
 
               <CardTitle className="text-base">
-                Advance Payment
+                {isEditMode ? "Payment & Settlement" : "Advance Payment"}
               </CardTitle>
 
               <p className="mt-1 text-xs text-muted-foreground">
-                Record the amount received today
+                {isEditMode
+                  ? "Previous payments are preserved. Record any new payment."
+                  : "Record the amount received today"}
               </p>
 
             </div>
@@ -680,13 +710,53 @@ export function BillingStep({
         <CardContent className="space-y-5 p-5">
 
           {/* =================================================
+              EXISTING PAYMENT HISTORY (EDIT MODE ONLY)
+          ================================================== */}
+
+          {isEditMode && existingPayments.length > 0 && (
+            <div className="space-y-2 rounded-lg border bg-muted/30 p-3.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-foreground">
+                  Preserved Payment History
+                </span>
+                <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                  Total Paid: {formatCurrency(existingPaidTotal)}
+                </span>
+              </div>
+
+              <div className="divide-y divide-border/60 text-xs">
+                {existingPayments.map((p, idx) => (
+                  <div key={p.paymentId || idx} className="flex items-center justify-between py-1.5">
+                    <div>
+                      <span className="font-medium text-foreground">
+                        {p.paymentType || "PAYMENT"}
+                      </span>
+                      <span className="ml-1.5 text-muted-foreground">
+                        ({p.paymentMethod})
+                      </span>
+                      {p.createdAt && (
+                        <span className="ml-2 text-[11px] text-muted-foreground">
+                          {p.createdAt.slice(0, 10)}
+                        </span>
+                      )}
+                    </div>
+                    <span className="font-semibold text-foreground">
+                      {formatCurrency(Number(p.amount || 0))}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* =================================================
               ADVANCE AMOUNT
           ================================================== */}
 
           <div className="space-y-2">
 
             <Label htmlFor="advanceAmount">
-              Advance Amount
+              {isEditMode ? "New Payment Amount (Optional)" : "Advance Amount"}
             </Label>
 
             <div className="relative">
@@ -699,7 +769,7 @@ export function BillingStep({
                 id="advanceAmount"
                 type="number"
                 min={0}
-                max={grandTotal}
+                max={maxPayableToday}
                 step="0.01"
                 className="pl-7 text-base"
                 value={
@@ -718,21 +788,23 @@ export function BillingStep({
 
             <div className="flex flex-col gap-1 text-xs sm:flex-row sm:items-center sm:justify-between">
 
-              <span className="text-amber-700 dark:text-amber-400">
+              {!isEditMode && (
+                <span className="text-amber-700 dark:text-amber-400">
 
-                Recommended minimum:{" "}
+                  Recommended minimum:{" "}
 
-                <span className="font-semibold">
-                  {formatCurrency(
-                    minimumAdvance,
-                  )}
+                  <span className="font-semibold">
+                    {formatCurrency(
+                      minimumAdvance,
+                    )}
+                  </span>
+
                 </span>
-
-              </span>
+              )}
 
               <span className="text-muted-foreground">
                 Maximum:{" "}
-                {formatCurrency(grandTotal)}
+                {formatCurrency(maxPayableToday)}
               </span>
 
             </div>
@@ -799,19 +871,19 @@ export function BillingStep({
               Order Date <span className="text-destructive">*</span>
             </Label>
 
-            <div className="relative">
+            <DatePicker
+              id="orderDate"
+              disabled={isEditMode}
+              allowClear={false}
+              value={orderDate}
+              onChange={(newDate) => onOrderDateChange(newDate)}
+            />
 
-              <Input
-                id="orderDate"
-                type="date"
-                required
-                value={orderDate}
-                onChange={(event) => onOrderDateChange(event.target.value)}
-                className="pr-10"
-              />
-              <CalendarDays className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-
-            </div>
+            {isEditMode && (
+              <p className="text-xs text-muted-foreground">
+                Original order date is locked to maintain order history.
+              </p>
+            )}
 
           </div>
 
@@ -825,22 +897,15 @@ export function BillingStep({
               Delivery Date
             </Label>
 
-            <div className="relative">
-
-              <Input
-                id="deliveryDate"
-                type="date"
-                value={billing.deliveryDate || deliveryDate}
-                onChange={(event) =>
-                  updateBilling({
-                    deliveryDate: event.target.value,
-                  })
-                }
-                className="pr-10"
-              />
-              <CalendarDays className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-
-            </div>
+            <DatePicker
+              id="deliveryDate"
+              value={billing.deliveryDate || deliveryDate}
+              onChange={(newDate) =>
+                updateBilling({
+                  deliveryDate: newDate,
+                })
+              }
+            />
 
           </div>
 
@@ -866,52 +931,72 @@ export function BillingStep({
 
             </div>
 
+            {/* Already Paid (Edit Mode) */}
+
+            {isEditMode && (
+              <div className="flex items-center justify-between text-sm">
+
+                <span className="text-muted-foreground">
+                  Already Paid (Preserved)
+                </span>
+
+                <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                  - {formatCurrency(existingPaidTotal)}
+                </span>
+
+              </div>
+            )}
+
             {/* Minimum Advance */}
 
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 dark:border-amber-900/50 dark:bg-amber-950/20">
+            {!isEditMode && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 dark:border-amber-900/50 dark:bg-amber-950/20">
 
-              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center justify-between gap-3">
 
-                <div>
+                  <div>
 
-                  <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
-                    Minimum Advance
-                  </p>
+                    <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                      Minimum Advance
+                    </p>
 
-                  <p className="mt-0.5 text-xs text-amber-700/80 dark:text-amber-400/80">
-                    {
-                      BILLING_CONSTANTS.MINIMUM_ADVANCE_PERCENTAGE
-                    }
-                    % of total billing amount
-                  </p>
+                    <p className="mt-0.5 text-xs text-amber-700/80 dark:text-amber-400/80">
+                      {
+                        BILLING_CONSTANTS.MINIMUM_ADVANCE_PERCENTAGE
+                      }
+                      % of total billing amount
+                    </p>
+
+                  </div>
+
+                  <span className="text-lg font-bold text-amber-800 dark:text-amber-300">
+                    {formatCurrency(
+                      minimumAdvance,
+                    )}
+                  </span>
 
                 </div>
 
-                <span className="text-lg font-bold text-amber-800 dark:text-amber-300">
+              </div>
+            )}
+
+            {/* Advance Received */}
+
+            {(!isEditMode || advanceAmount > 0) && (
+              <div className="flex items-center justify-between rounded-lg bg-emerald-50 px-3 py-2.5 dark:bg-emerald-950/20">
+
+                <span className="text-sm font-medium text-emerald-700 dark:text-emerald-400">
+                  {isEditMode ? "New Payment Recorded" : "Advance Received"}
+                </span>
+
+                <span className="font-semibold text-emerald-700 dark:text-emerald-400">
                   {formatCurrency(
-                    minimumAdvance,
+                    advanceAmount,
                   )}
                 </span>
 
               </div>
-
-            </div>
-
-            {/* Advance Received */}
-
-            <div className="flex items-center justify-between rounded-lg bg-emerald-50 px-3 py-2.5 dark:bg-emerald-950/20">
-
-              <span className="text-sm font-medium text-emerald-700 dark:text-emerald-400">
-                Advance Received
-              </span>
-
-              <span className="font-semibold text-emerald-700 dark:text-emerald-400">
-                {formatCurrency(
-                  advanceAmount,
-                )}
-              </span>
-
-            </div>
+            )}
 
             {/* Below Minimum Warning */}
 
@@ -942,7 +1027,7 @@ export function BillingStep({
 
             {/* No Advance */}
 
-            {advanceAmount === 0 && (
+            {!isEditMode && advanceAmount === 0 && (
 
               <div className="rounded-md border border-dashed px-3 py-2">
 
@@ -966,7 +1051,7 @@ export function BillingStep({
             <div className="flex items-center justify-between rounded-lg bg-orange-50 px-3 py-3 dark:bg-orange-950/20">
 
               <span className="font-semibold text-orange-700 dark:text-orange-400">
-                Balance Due
+                {isEditMode ? "Remaining Balance Due" : "Balance Due"}
               </span>
 
               <span className="text-lg font-bold text-orange-700 dark:text-orange-400">

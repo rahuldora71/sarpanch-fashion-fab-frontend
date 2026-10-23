@@ -24,14 +24,15 @@ export default function DashboardLayout() {
           hidden
           flex-col
           border-r
-          border-sidebar-border
-          bg-sidebar
+          border-sidebar-border/80
+          bg-sidebar/95
+          backdrop-blur-md
           text-sidebar-foreground
           transition-[width]
           duration-200
           md:flex
 
-          ${collapsed ? "w-16" : "w-56"}
+          ${collapsed ? "w-[72px]" : "w-60"}
         `}
       >
 
@@ -43,14 +44,15 @@ export default function DashboardLayout() {
           type="button"
           onClick={() => setCollapsed((value) => !value)}
           className={`
+            group
             flex
             h-16
             shrink-0
             items-center
             border-b
-            border-sidebar-border
+            border-sidebar-border/80
             transition-colors
-            hover:bg-sidebar-accent
+            hover:bg-sidebar-accent/50
 
             ${collapsed
               ? "justify-center px-2"
@@ -64,42 +66,43 @@ export default function DashboardLayout() {
           }
         >
 
-          {/* Logo */}
-
+          {/* Logo Monogram */}
           <div
             className="
               flex
-              size-9
+              size-10
               shrink-0
               items-center
               justify-center
-              rounded-md
-              bg-primary
-              text-sm
-              font-bold
-              text-primary-foreground
+              rounded-xl
+              overflow-hidden
+              border border-primary/20
+              shadow-sm
+              shadow-primary/30
+              transition-transform
+              group-hover:scale-105
             "
           >
-            SF
+            <img
+              src="/icons/icon-192.png"
+              alt="Sarpanch Fashion Fab"
+              className="size-full object-cover"
+            />
           </div>
 
-
           {/* Application name */}
-
           {!collapsed && (
             <div className="min-w-0 text-left">
-              <p className="truncate text-sm font-bold">
+              <p className="truncate text-sm font-bold tracking-tight text-foreground">
                 Sarpanch
               </p>
-
-              <p className="truncate text-[10px] text-sidebar-foreground/60">
+              <p className="truncate text-[10.5px] font-medium tracking-wider text-muted-foreground uppercase">
                 Fashion Fab
               </p>
             </div>
           )}
 
         </button>
-
 
         {/* =================================================
             DESKTOP MENU
@@ -109,7 +112,6 @@ export default function DashboardLayout() {
           collapsed={collapsed}
         />
 
-
         {/* =================================================
             SIDEBAR FOOTER
         ================================================== */}
@@ -118,7 +120,7 @@ export default function DashboardLayout() {
           className={`
             shrink-0
             border-t
-            border-sidebar-border
+            border-sidebar-border/80
             p-3
 
             ${collapsed
@@ -128,20 +130,20 @@ export default function DashboardLayout() {
           `}
         >
           {!collapsed && (
-            <p className="text-center text-xs text-sidebar-foreground/40">
-              Sarpanch Fashion Fab
-            </p>
+            <div className="flex items-center justify-between text-[11px] text-muted-foreground/80 px-1">
+              <span>Bespoke Atelier</span>
+              <span className="font-mono text-[10px] opacity-60">v2.4</span>
+            </div>
           )}
 
           {collapsed && (
-            <span className="text-xs text-sidebar-foreground/40">
-              SF
+            <span className="text-[10px] font-mono text-muted-foreground/60">
+              v2.4
             </span>
           )}
         </div>
 
       </aside>
-
 
       {/* =================================================
           MAIN AREA
@@ -154,8 +156,8 @@ export default function DashboardLayout() {
           duration-200
 
           ${collapsed
-            ? "md:pl-16"
-            : "md:pl-56"
+            ? "md:pl-[72px]"
+            : "md:pl-60"
           }
         `}
       >
@@ -164,13 +166,15 @@ export default function DashboardLayout() {
 
         <main
           className="
-            min-h-[calc(100vh-3.5rem)]
+            min-h-[calc(100vh-4rem)]
             px-4
-            py-5
+            py-6
             pb-24
-            sm:px-5
-            md:pb-5
-            lg:px-6
+            sm:px-6
+            md:pb-8
+            lg:px-8
+            max-w-[1600px]
+            mx-auto
           "
         >
           <Outlet />

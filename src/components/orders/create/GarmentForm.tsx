@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ImagePlus, X } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
 
 import { getActiveServices } from "@/services/serviceService";
 import type { Service } from "@/types/service";
@@ -18,9 +17,6 @@ export function GarmentForm({ value, onChange }: GarmentFormProps) {
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showFabricDetails, setShowFabricDetails] = useState(
-    Boolean(value.sampleId || value.bookNumber || value.pageNumber),
-  );
 
   useEffect(() => {
     let cancelled = false;
@@ -93,6 +89,8 @@ export function GarmentForm({ value, onChange }: GarmentFormProps) {
     });
   };
 
+  const isLocked = Boolean(value.isLocked);
+
   return (
     <div className="space-y-5">
       <div className="grid gap-4 md:grid-cols-3">
@@ -104,7 +102,7 @@ export function GarmentForm({ value, onChange }: GarmentFormProps) {
               id="garment-service"
               value={value.serviceId == null ? "" : String(value.serviceId)}
               onChange={(event) => handleServiceChange(event.target.value)}
-              disabled={loading}
+              disabled={loading || isLocked}
               className="flex h-10 w-full appearance-none rounded-md border border-input bg-background px-3 py-2 pr-9 text-sm outline-none transition focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <option value="">
@@ -114,6 +112,14 @@ export function GarmentForm({ value, onChange }: GarmentFormProps) {
                     ? "No active services"
                     : "Select garment type"}
               </option>
+
+              {value.serviceId != null &&
+                !selectedService &&
+                value.serviceName && (
+                  <option value={String(value.serviceId)}>
+                    {value.serviceName}
+                  </option>
+                )}
 
               {services.map((service) => (
                 <option key={service.id} value={String(service.id)}>
@@ -136,20 +142,32 @@ export function GarmentForm({ value, onChange }: GarmentFormProps) {
             type="number"
             min={0}
             step="1"
+            disabled={isLocked}
             value={value.price}
             onChange={(event) => {
               const raw = event.target.value;
+              const newPrice = raw === "" ? 0 : Math.max(0, Number(raw));
+              const sPrice = selectedService ? Number(selectedService.price) || 0 : 0;
+              const autoCustFabric = sPrice > 0 && newPrice > sPrice ? false : value.customerFabric;
               onChange({
                 ...value,
-                price: raw === "" ? 0 : Math.max(0, Number(raw)),
+                price: newPrice,
+                customerFabric: autoCustFabric,
               });
             }}
           />
 
           {selectedService && (
-            <p className="text-xs text-muted-foreground">
-              Service price: ₹{Number(selectedService.price).toLocaleString("en-IN")}
-            </p>
+            <div className="text-xs text-muted-foreground space-y-0.5">
+              <p>
+                Service price: ₹{Number(selectedService.price).toLocaleString("en-IN")}
+              </p>
+              {Number(value.price) > Number(selectedService.price) && (
+                <p className="text-amber-600 dark:text-amber-400 font-medium text-[11px]">
+                  ✨ Fabric portion: ₹{(Number(value.price) - Number(selectedService.price)).toLocaleString("en-IN")} (Shop fabric included)
+                </p>
+              )}
+            </div>
           )}
         </div>
 
@@ -157,6 +175,7 @@ export function GarmentForm({ value, onChange }: GarmentFormProps) {
           <Label htmlFor="garment-sample-number">Sample Number</Label>
           <Input
             id="garment-sample-number"
+            disabled={isLocked}
             value={value.sampleNumber}
             onChange={(event) =>
               onChange({ ...value, sampleNumber: event.target.value })
@@ -169,97 +188,49 @@ export function GarmentForm({ value, onChange }: GarmentFormProps) {
         </div>
       </div>
 
-      <div className="rounded-xl border bg-muted/40 p-3">
-        <div className="mb-3 flex items-center justify-between">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Fabric Sample
-          </p>
-
-          {showFabricDetails && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setShowFabricDetails(false);
-                onChange({
-                  ...value,
-                  sampleId: "",
-                  bookNumber: "",
-                  pageNumber: "",
-                });
-              }}
-            >
-              <X className="mr-1 h-3.5 w-3.5" />
-              Remove
-            </Button>
-          )}
-        </div>
-
-        {!showFabricDetails ? (
-          <button
-            type="button"
-            onClick={() => setShowFabricDetails(true)}
-            className="flex min-h-[88px] w-full items-center rounded-lg border border-dashed bg-background px-4 text-left transition hover:bg-accent"
-          >
-            <div className="flex h-12 w-12 items-center justify-center rounded-lg border bg-muted">
-              <ImagePlus className="h-5 w-5 text-muted-foreground" />
-            </div>
-
-            <div className="ml-4">
-              <p className="text-sm font-medium">Add Fabric Sample</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Add sample ID, book and page details.
-              </p>
-            </div>
-          </button>
-        ) : (
-          <div className="rounded-lg border bg-background p-4">
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="space-y-2">
-                <Label htmlFor="sample-id">Sample ID</Label>
-                <Input
-                  id="sample-id"
-                  value={value.sampleId}
-                  onChange={(event) =>
-                    onChange({ ...value, sampleId: event.target.value })
-                  }
-                  placeholder="FS-004826"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="book-number">Book #</Label>
-                <Input
-                  id="book-number"
-                  value={value.bookNumber}
-                  onChange={(event) =>
-                    onChange({ ...value, bookNumber: event.target.value })
-                  }
-                  placeholder="01"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="page-number">Page #</Label>
-                <Input
-                  id="page-number"
-                  value={value.pageNumber}
-                  onChange={(event) =>
-                    onChange({ ...value, pageNumber: event.target.value })
-                  }
-                  placeholder="4826"
-                />
-              </div>
-            </div>
+      {/* Fabric Source Selection */}
+      <div className="rounded-lg border border-border bg-card/60 p-3 space-y-2">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div>
+            <Label className="text-xs font-semibold text-foreground">Fabric Source</Label>
+            <p className="text-[11px] text-muted-foreground">
+              Specify whether customer brought their own cloth or purchased showroom fabric
+            </p>
           </div>
-        )}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={isLocked}
+              onClick={() => onChange({ ...value, customerFabric: true })}
+              className={`px-3 py-1 text-xs rounded-md font-medium transition-colors border ${
+                value.customerFabric !== false
+                  ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                  : "bg-background text-muted-foreground border-input hover:text-foreground hover:bg-muted/50"
+              }`}
+            >
+              ✂️ Customer Cloth (Stitching Only)
+            </button>
+            <button
+              type="button"
+              disabled={isLocked}
+              onClick={() => onChange({ ...value, customerFabric: false })}
+              className={`px-3 py-1 text-xs rounded-md font-medium transition-colors border ${
+                value.customerFabric === false
+                  ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                  : "bg-background text-muted-foreground border-input hover:text-foreground hover:bg-muted/50"
+              }`}
+            >
+              🧵 Shop Fabric Included
+            </button>
+          </div>
+        </div>
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="garment-notes">Instructions / Notes</Label>
         <Input
           id="garment-notes"
+          disabled={isLocked}
           value={value.notes}
           onChange={(event) =>
             onChange({ ...value, notes: event.target.value })

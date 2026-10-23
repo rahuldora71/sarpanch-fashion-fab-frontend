@@ -13,6 +13,7 @@ export interface AuthUser {
   updatedAt: string;
   provider: string;
   roles: AuthRole[];
+  effectivePermissions?: string[];
 }
 
 export interface AuthResponse {
@@ -20,4 +21,5 @@ export interface AuthResponse {
   refreshToken?: string;
   expiresIn: number;
   user: AuthUser;
+  effectivePermissions?: string[];
 }

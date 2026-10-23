@@ -1,23 +1,21 @@
-import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, Plus, Search, Trash2 } from "lucide-react";
+/* eslint-disable react-refresh/only-export-components */
+import { useState } from "react";
+import { Lock, Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 import { GarmentForm } from "@/components/orders/create/GarmentForm";
 import { SelectedItemsPanel } from "@/components/orders/create/SelectedItemsPanel";
 
-import {
-  getActiveAddOns,
-  searchAddOns,
-} from "@/services/addOnService";
-
 import type {
   GarmentFormValue,
   SelectedOrderAddOn,
 } from "@/types/order";
+import { generateUUID } from "@/utils/uuid";
 
 export type OrderGarment = GarmentFormValue & {
   localId: string;
@@ -28,22 +26,21 @@ export type OrderGarment = GarmentFormValue & {
 export interface GarmentsStepProps {
   garments: OrderGarment[];
   commonDueDate: string;
+  sampleBookPageNumber: string;
   onChange: (garments: OrderGarment[]) => void;
   onCommonDueDateChange: (value: string) => void;
+  onSampleBookPageNumberChange: (value: string) => void;
 }
 
 export function createEmptyGarment(sequence = 1): OrderGarment {
   return {
-    localId: crypto.randomUUID(),
+    localId: generateUUID(),
 
     serviceId: null,
     serviceName: "",
     price: 0,
 
     sampleNumber: String(sequence),
-    sampleId: "",
-    bookNumber: "",
-    pageNumber: "",
     notes: "",
 
     addOns: [],
@@ -56,98 +53,23 @@ export function createEmptyGarment(sequence = 1): OrderGarment {
 export function GarmentsStep({
   garments,
   commonDueDate,
+  sampleBookPageNumber,
   onChange,
   onCommonDueDateChange,
+  onSampleBookPageNumberChange,
 }: GarmentsStepProps) {
   const [activeIndex, setActiveIndex] = useState(0);
 
-  const [addOnSearch, setAddOnSearch] = useState("");
-
-  const [availableAddOns, setAvailableAddOns] = useState<
-    SelectedOrderAddOn[]
-  >([]);
-
-  const [loadingAddOns, setLoadingAddOns] = useState(false);
-
-  const activeGarment =
-    garments[activeIndex] ?? garments[0];
-
-  const selectedAddOnIds = useMemo(
-    () =>
-      activeGarment?.addOns.map(
-        (item) => item.id,
-      ) ?? [],
-    [activeGarment],
-  );
-
-  /*
-   * Load active add-ons globally.
-   *
-   * Add-ons are NOT connected to a tailoring service.
-   */
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadAddOns() {
-      try {
-        setLoadingAddOns(true);
-
-        const response = addOnSearch.trim()
-          ? await searchAddOns(
-              addOnSearch.trim(),
-              0,
-              50,
-              "name,asc",
-            )
-          : await getActiveAddOns(
-              0,
-              50,
-              "name,asc",
-            );
-
-        if (cancelled) return;
-
-        setAvailableAddOns(
-          (response.content ?? []).map((item) => ({
-            id: item.id,
-            name: item.name,
-            price: Number(item.price ?? 0),
-            tailorCommission: Number(
-              item.tailorCommission ?? 0,
-            ),
-            imageUrl: item.imageUrl ?? null,
-            beforeCutting: item.beforeCutting,
-            quantity: 1,
-            totalPrice: Number(item.price ?? 0),
-          })),
-        );
-      } catch (error) {
-        console.error(
-          "Failed to load add-ons:",
-          error,
-        );
-
-        if (!cancelled) {
-          setAvailableAddOns([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoadingAddOns(false);
-        }
-      }
-    }
-
-    void loadAddOns();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [addOnSearch]);
+  const activeGarment = garments[activeIndex] ?? garments[0];
 
   const updateGarment = (
     index: number,
     updates: Partial<OrderGarment>,
   ) => {
+    if (garments[index]?.isLocked) {
+      return;
+    }
+
     onChange(
       garments.map((garment, garmentIndex) =>
         garmentIndex === index
@@ -174,6 +96,10 @@ export function GarmentsStep({
       return;
     }
 
+    if (garments[index]?.isLocked) {
+      return;
+    }
+
     const next = garments.filter(
       (_, i) => i !== index,
     );
@@ -193,39 +119,43 @@ export function GarmentsStep({
     }
   };
 
-  const toggleAddOn = (
-    addOn: SelectedOrderAddOn,
-  ) => {
-    if (!activeGarment) {
+  const handleAddAddOn = (addOn: SelectedOrderAddOn) => {
+    if (!activeGarment || activeGarment.isLocked) {
       return;
     }
 
-    const exists =
-      activeGarment.addOns.some(
-        (item) => item.id === addOn.id,
-      );
+    if (activeGarment.addOns.some((item) => item.id === addOn.id)) {
+      return;
+    }
 
     updateGarment(activeIndex, {
-      addOns: exists
-        ? activeGarment.addOns.filter(
-            (item) =>
-              item.id !== addOn.id,
-          )
-        : [
-            ...activeGarment.addOns,
-            {
-              ...addOn,
-              beforeCutting: Boolean(addOn.beforeCutting),
-              quantity: 1,
-              totalPrice: Number(addOn.price ?? 0),
-            },
-          ],
+      addOns: [
+        ...activeGarment.addOns,
+        {
+          ...addOn,
+          beforeCutting: Boolean(addOn.beforeCutting),
+          quantity: 1,
+          totalPrice: Number(addOn.price ?? 0),
+        },
+      ],
+    });
+  };
+
+  const handleRemoveAddOn = (addOnId: number) => {
+    if (!activeGarment || activeGarment.isLocked) {
+      return;
+    }
+
+    updateGarment(activeIndex, {
+      addOns: activeGarment.addOns.filter((item) => item.id !== addOnId),
     });
   };
 
   if (!activeGarment) {
     return null;
   }
+
+  const isActiveLocked = Boolean(activeGarment.isLocked);
 
   return (
     <div className="space-y-5">
@@ -242,27 +172,34 @@ export function GarmentsStep({
             </h3>
 
             <p className="mt-1 text-xs text-muted-foreground">
-              This date applies to every garment
+              This date applies to every editable garment
               unless an individual date is enabled.
             </p>
           </div>
 
-          <div className="relative w-full sm:w-[220px]">
-            <CalendarDays
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-            />
-
-            <Input
-              type="date"
+          <div className="w-full sm:w-[260px]">
+            <DatePicker
               value={commonDueDate}
-              onChange={(event) =>
-                onCommonDueDateChange(
-                  event.target.value,
-                )
+              onChange={(newDate) =>
+                onCommonDueDateChange(newDate)
               }
-              className="pl-10"
             />
           </div>
+        </div>
+      </div>
+
+      <div className="rounded-xl border bg-card p-4">
+        <div className="max-w-[260px] space-y-2">
+          <Label htmlFor="sample-book-page-number">Sample Book Page Number</Label>
+          <Input
+            id="sample-book-page-number"
+            value={sampleBookPageNumber}
+            onChange={(event) => onSampleBookPageNumberChange(event.target.value)}
+            placeholder="e.g. 4826"
+          />
+          <p className="text-xs text-muted-foreground">
+            This is saved once on the order, not separately on each garment.
+          </p>
         </div>
       </div>
 
@@ -302,10 +239,14 @@ export function GarmentsStep({
                   #{index + 1}{" "}
                   {garment.serviceName ||
                     "Garment"}
+                  {garment.isLocked && (
+                    <Lock className="ml-1.5 h-3.5 w-3.5 text-amber-500" />
+                  )}
                 </Button>
 
                 {garments.length > 1 &&
-                  active && (
+                  active &&
+                  !garment.isLocked && (
                     <button
                       type="button"
                       onClick={() =>
@@ -347,6 +288,18 @@ export function GarmentsStep({
 
         <section className="rounded-xl border bg-card p-5">
 
+          {isActiveLocked && (
+            <div className="mb-5 flex items-center gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              <Lock className="h-4 w-4 shrink-0 text-amber-600" />
+              <div>
+                <span className="font-semibold">
+                  Garment Locked ({activeGarment.status?.replace("_", " ")})
+                </span>
+                {" — "}Cutting has already started for this garment, so its details, add-ons, and measurements cannot be edited or removed.
+              </div>
+            </div>
+          )}
+
           <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-base font-semibold">
               Garment #{activeIndex + 1}
@@ -354,6 +307,7 @@ export function GarmentsStep({
 
             <div className="flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2">
               <Checkbox
+                disabled={isActiveLocked}
                 checked={
                   activeGarment.individualDueDateEnabled
                 }
@@ -381,24 +335,18 @@ export function GarmentsStep({
           </div>
 
           {activeGarment.individualDueDateEnabled && (
-            <div className="mb-5 max-w-[220px] space-y-2">
+            <div className="mb-5 max-w-[260px] space-y-2">
               <Label>
                 Garment Due Date
               </Label>
 
-              <Input
-                type="date"
-                value={
-                  activeGarment.dueDate
-                }
-                onChange={(event) =>
-                  updateGarment(
-                    activeIndex,
-                    {
-                      dueDate:
-                        event.target.value,
-                    },
-                  )
+              <DatePicker
+                disabled={isActiveLocked}
+                value={activeGarment.dueDate}
+                onChange={(newDate) =>
+                  updateGarment(activeIndex, {
+                    dueDate: newDate,
+                  })
                 }
               />
             </div>
@@ -419,43 +367,12 @@ export function GarmentsStep({
             ADD-ONS
         =================================================== */}
 
-        <div className="space-y-3">
-
-          <div className="rounded-xl border bg-card p-4">
-
-            <div className="mb-3">
-              <h3 className="text-sm font-semibold">
-                Add-ons
-              </h3>
-
-              <p className="mt-1 text-xs text-muted-foreground">
-                Search and add optional work to this garment.
-              </p>
-            </div>
-
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-
-              <Input
-                value={addOnSearch}
-                onChange={(event) =>
-                  setAddOnSearch(
-                    event.target.value,
-                  )
-                }
-                placeholder="Search add-ons..."
-                className="pl-9"
-              />
-            </div>
-          </div>
-
+        <div className={isActiveLocked ? "pointer-events-none opacity-60" : ""}>
           <SelectedItemsPanel
-            addOns={availableAddOns}
-            selectedAddOnIds={
-              selectedAddOnIds
-            }
-            loading={loadingAddOns}
-            onToggle={toggleAddOn}
+            selectedAddOns={activeGarment.addOns}
+            isLocked={isActiveLocked}
+            onAdd={handleAddAddOn}
+            onRemove={handleRemoveAddOn}
           />
         </div>
       </div>

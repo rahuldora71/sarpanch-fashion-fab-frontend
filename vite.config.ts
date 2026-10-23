@@ -6,12 +6,10 @@ import path from 'path/win32'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
 
- server: {
-  host: '0.0.0.0',
-  hmr: {
-    host: 'localhost',
+  server: {
+    host: '0.0.0.0',
+    port: 5173,
   },
-},
 
   resolve: {
     alias: {

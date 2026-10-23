@@ -1,5 +1,6 @@
 import { Check, ChevronRight } from "lucide-react";
 import type { CustomerSummary } from "@/models/Customer";
+import CustomerAvatar from "@/components/customers/CustomerAvatar";
 
 interface CustomerListItemProps {
   customer: CustomerSummary;
@@ -18,18 +19,18 @@ export function CustomerListItem({
       onClick={() => onSelect(customer)}
       aria-pressed={selected}
       className={[
-        "group flex w-full items-center justify-between rounded-lg border px-3 py-3 text-left transition-colors",
+        "group flex w-full items-center justify-between rounded-lg border px-3 py-2.5 text-left transition-colors",
         selected
           ? "border-primary bg-primary/10"
           : "border-border bg-background hover:bg-accent",
       ].join(" ")}
     >
       <div className="flex min-w-0 items-center gap-3">
-        {selected && (
-          <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
-            <Check className="h-3 w-3" />
-          </div>
-        )}
+        <CustomerAvatar
+          name={customer.name}
+          image={customer.image}
+          size="sm"
+        />
 
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">{customer.name}</p>
@@ -41,9 +42,16 @@ export function CustomerListItem({
         </div>
       </div>
 
-      {!selected && (
-        <ChevronRight className="ml-4 h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-      )}
+      <div className="flex items-center gap-2">
+        {selected && (
+          <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+            <Check className="h-3 w-3" />
+          </div>
+        )}
+        {!selected && (
+          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+        )}
+      </div>
     </button>
   );
 }

@@ -1,74 +1,56 @@
-import { useEffect, useState } from "react";
 import { UserRound } from "lucide-react";
 
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/components/ui/avatar";
-
-import type { CustomerSummary } from "@/services/CustomerService";
-
 interface CustomerAvatarProps {
-  customer: CustomerSummary;
+  name: string;
+  image?: string | null;
   size?: "sm" | "md" | "lg";
 }
 
+const sizes = {
+  sm: "h-9 w-9 text-sm",
+  md: "h-12 w-12 text-base",
+  lg: "h-14 w-14 text-lg",
+};
+
 export default function CustomerAvatar({
-  customer,
+  name,
+  image,
   size = "md",
 }: CustomerAvatarProps) {
-  const [imageSrc, setImageSrc] = useState(
-    customer.image?.trim() || null
-  );
-
-  const [imageError, setImageError] = useState(false);
-
-  useEffect(() => {
-    setImageSrc(customer.image?.trim() || null);
-    setImageError(false);
-  }, [customer.id, customer.image]);
-
-  const sizeClass = {
-    sm: "size-9",
-    md: "size-11",
-    lg: "size-16",
-  }[size];
-
-  const iconSize = {
-    sm: "size-4",
-    md: "size-5",
-    lg: "size-7",
-  }[size];
+  const initial =
+    name?.trim()?.charAt(0)?.toUpperCase() || "?";
 
   return (
-    <Avatar className={sizeClass}>
-
-      {/* Customer image */}
-      {imageSrc && !imageError && (
-        <AvatarImage
-          src={imageSrc}
-          alt={customer.name || "Customer"}
+    <div
+      className={`
+        relative flex shrink-0 items-center justify-center
+        overflow-hidden rounded-full
+        border border-border
+        bg-muted
+        font-semibold text-muted-foreground
+        ${sizes[size]}
+      `}
+    >
+      {image ? (
+        <img
+          src={image}
+          alt={name}
+          className="absolute inset-0 h-full w-full object-cover"
           referrerPolicy="no-referrer"
-          onError={() => {
-            console.log(
-              "Customer image failed:",
-              customer.id,
-              customer.image
-            );
-
-            setImageError(true);
+          onError={(event) => {
+            event.currentTarget.style.display = "none";
           }}
         />
+      ) : null}
+
+      {!image ? (
+        <>
+          <span className="sr-only">{name}</span>
+          <UserRound className="h-1/2 w-1/2" />
+        </>
+      ) : (
+        <span className="sr-only">{initial}</span>
       )}
-
-      {/* Placeholder */}
-      <AvatarFallback>
-        <UserRound
-          className={`${iconSize} text-muted-foreground`}
-        />
-      </AvatarFallback>
-
-    </Avatar>
+    </div>
   );
 }

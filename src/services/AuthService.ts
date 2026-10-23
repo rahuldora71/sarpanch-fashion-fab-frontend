@@ -57,3 +57,57 @@ export const logoutUser = async () => {
 
   return response.data;
 };
+
+// ---------------------------------------------------------
+// Password Recovery (OTP-based)
+// ---------------------------------------------------------
+
+export interface PasswordResetApiResponse {
+  success: boolean;
+  message: string;
+  challengeId?: string;
+  resetToken?: string;
+  cooldownSeconds?: number;
+}
+
+export const requestPasswordResetOtp = async (
+  email: string
+): Promise<PasswordResetApiResponse> => {
+  const response = await apiClient.post<PasswordResetApiResponse>(
+    "/auth/forgot-password",
+    { email }
+  );
+  return response.data;
+};
+
+export const resendPasswordResetOtp = async (
+  challengeId: string
+): Promise<PasswordResetApiResponse> => {
+  const response = await apiClient.post<PasswordResetApiResponse>(
+    "/auth/resend-reset-otp",
+    { challengeId }
+  );
+  return response.data;
+};
+
+export const verifyPasswordResetOtp = async (
+  challengeId: string,
+  otp: string
+): Promise<PasswordResetApiResponse> => {
+  const response = await apiClient.post<PasswordResetApiResponse>(
+    "/auth/verify-reset-otp",
+    { challengeId, otp }
+  );
+  return response.data;
+};
+
+export const completePasswordReset = async (
+  resetToken: string,
+  newPassword: string
+): Promise<PasswordResetApiResponse> => {
+  const response = await apiClient.post<PasswordResetApiResponse>(
+    "/auth/reset-password",
+    { resetToken, newPassword }
+  );
+  return response.data;
+};

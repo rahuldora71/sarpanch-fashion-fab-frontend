@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Ruler } from "lucide-react";
+import { Loader2, Lock, Ruler } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
 import {
   getLatestMeasurement,
   getMeasurementCopySources,
-  getMeasurementFieldDefinitions,
   getServiceMeasurementConfig,
 } from "@/services/measurementService";
+import { useMeasurementFields } from "@/hooks/useMeasurementFields";
 
 import { MeasurementCard } from "@/components/orders/create/MeasurementCard";
 import { GarmentMeasurementCopyDialog } from "@/components/orders/create/GarmentMeasurementCopyDialog";
@@ -102,8 +102,7 @@ export function MeasurementsStep({
 }: MeasurementsStepProps) {
   const [activeIndex, setActiveIndex] = useState(0);
 
-  const [fieldDefinitions, setFieldDefinitions] =
-    useState<MeasurementFieldDefinition[]>([]);
+  const { fields: fieldDefinitions } = useMeasurementFields();
 
   const [serviceFields, setServiceFields] =
     useState<Record<number, ServiceFieldState>>({});
@@ -146,43 +145,7 @@ export function MeasurementsStep({
     [garments],
   );
 
-  /* ---------------------------------------------------------
-     Global measurement field catalogue
-  --------------------------------------------------------- */
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadDefinitions() {
-      try {
-        const definitions =
-          await getMeasurementFieldDefinitions(
-            0,
-            100,
-            "name,asc",
-          );
-
-        if (!cancelled) {
-          setFieldDefinitions(definitions);
-        }
-      } catch (error) {
-        console.error(
-          "Failed to load measurement fields:",
-          error,
-        );
-
-        if (!cancelled) {
-          setFieldDefinitions([]);
-        }
-      }
-    }
-
-    void loadDefinitions();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   /* ---------------------------------------------------------
      Service measurement configuration
@@ -336,7 +299,7 @@ export function MeasurementsStep({
   ) => {
     const garment = garments[index];
 
-    if (!garment || garment.serviceId === null) {
+    if (!garment || garment.serviceId === null || garment.isLocked) {
       return;
     }
 
@@ -353,92 +316,115 @@ export function MeasurementsStep({
     });
   };
 
-  const copyFromSource = (
-    index: number,
-    source: MeasurementSourceSummary,
-  ) => {
-    const garment = garments[index];
+ const copyFromSource = (
+  index: number,
+  source: MeasurementSourceSummary,
+) => {
+  const garment = garments[index];
 
-    if (!garment || garment.serviceId === null) {
-      return;
-    }
+  if (!garment || garment.serviceId === null) {
+    return;
+  }
 
-    const fields =
-      serviceFields[garment.serviceId]?.fields ?? [];
+  const fields =
+    serviceFields[garment.serviceId]?.fields ?? [];
 
-    updateMeasurement(index, {
-      measurementFields:
-        copyCompatibleMeasurementValues(
-          source,
-          fields,
-        ),
-      sourceMeasurementId: source.id,
-    });
+  updateMeasurement(index, {
+    measurementFields:
+      copyCompatibleMeasurementValues(
+        source,
+        fields,
+      ),
 
-    setSourceDialogIndex(null);
-  };
+    /*
+     * Keep the original measurement ID.
+     *
+     * Backend will compare the supplied measurementFields
+     * with the existing measurement before deciding whether
+     * to reuse it or create a new measurement.
+     */
+    sourceMeasurementId: source.id,
+  });
 
-  const applyLatestMeasurement = (
-    index: number,
-  ) => {
-    const garment = garments[index];
+  setSourceDialogIndex(null);
+};
 
-    if (!garment || garment.serviceId === null) {
-      return;
-    }
 
-    const latest =
-      latestMeasurements[garment.serviceId];
+const applyLatestMeasurement = (
+  index: number,
+) => {
+  const garment = garments[index];
 
-    if (!latest) {
-      return;
-    }
+  if (!garment || garment.serviceId === null) {
+    return;
+  }
 
-    copyFromSource(index, latest);
-  };
+  const latest =
+    latestMeasurements[garment.serviceId];
 
-  const copyFromAnotherGarment = (
-    targetIndex: number,
-    sourceIndex: number,
-  ) => {
-    const target = garments[targetIndex];
-    const source = garments[sourceIndex];
+  if (!latest) {
+    return;
+  }
 
-    if (!target || !source || target.serviceId === null) {
-      return;
-    }
+  copyFromSource(index, latest);
+};
 
-    const sourceDraft =
-      measurements[source.localId];
 
-    if (!sourceDraft) {
-      setGarmentCopyDialogIndex(null);
-      return;
-    }
+const copyFromAnotherGarment = (
+  targetIndex: number,
+  sourceIndex: number,
+) => {
+  const target = garments[targetIndex];
+  const source = garments[sourceIndex];
 
-    const fields =
-      serviceFields[target.serviceId]?.fields ?? [];
+  if (!target || !source || target.serviceId === null) {
+    return;
+  }
 
-    const allowedIds = new Set(
-      fields.map((field) => String(field.id)),
+  const sourceDraft =
+    measurements[source.localId];
+
+  if (!sourceDraft) {
+    setGarmentCopyDialogIndex(null);
+    return;
+  }
+
+  const fields =
+    serviceFields[target.serviceId]?.fields ?? [];
+
+  const allowedIds = new Set(
+    fields.map((field) => String(field.id)),
+  );
+
+  const compatibleValues =
+    Object.fromEntries(
+      Object.entries(
+        sourceDraft.measurementFields ?? {},
+      ).filter(([fieldId]) =>
+        allowedIds.has(String(fieldId)),
+      ),
     );
 
-    const compatibleValues =
-      Object.fromEntries(
-        Object.entries(
-          sourceDraft.measurementFields ?? {},
-        ).filter(([fieldId]) =>
-          allowedIds.has(String(fieldId)),
-        ),
-      );
+  updateMeasurement(targetIndex, {
+    measurementFields: compatibleValues,
 
-    updateMeasurement(targetIndex, {
-      measurementFields: compatibleValues,
-      sourceMeasurementId: null,
-    });
+    /*
+     * IMPORTANT:
+     *
+     * If the source garment is already using a database
+     * measurement, keep that ID.
+     *
+     * Backend will verify whether the copied values are
+     * still identical to that measurement.
+     */
+    sourceMeasurementId:
+      sourceDraft.sourceMeasurementId ?? null,
+  });
 
-    setGarmentCopyDialogIndex(null);
-  };
+  setGarmentCopyDialogIndex(null);
+};
+
+ 
 
   const garmentCopyOptions = garments.map(
     (garment, index) => ({
@@ -590,7 +576,7 @@ export function MeasurementsStep({
               className={[
                 "shrink-0 rounded-full px-5",
                 active &&
-                  "bg-slate-900 hover:bg-slate-800",
+                "bg-slate-900 hover:bg-slate-800",
               ]
                 .filter(Boolean)
                 .join(" ")}
@@ -598,6 +584,9 @@ export function MeasurementsStep({
             >
               #{index + 1}{" "}
               {garment.serviceName || "Garment"}
+              {garment.isLocked && (
+                <Lock className="ml-1.5 h-3.5 w-3.5 text-amber-500" />
+              )}
             </Button>
           );
         })}
@@ -616,6 +605,7 @@ export function MeasurementsStep({
           garmentName={
             activeGarment.serviceName || "Garment"
           }
+          isLocked={Boolean(activeGarment.isLocked)}
           draft={draft}
           fields={fieldState.fields}
           requiredFieldIds={
@@ -657,7 +647,6 @@ export function MeasurementsStep({
           onChangeValues={(values) =>
             updateMeasurement(activeIndex, {
               measurementFields: values,
-              sourceMeasurementId: null,
             })
           }
           onChangeNote={(value) =>

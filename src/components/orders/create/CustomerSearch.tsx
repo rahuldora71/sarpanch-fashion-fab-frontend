@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,12 +9,42 @@ interface CustomerSearchProps {
 }
 
 export function CustomerSearch({ value, onChange }: CustomerSearchProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!window.visualViewport) return;
+    const vv = window.visualViewport;
+
+    const handleViewportChange = () => {
+      if (document.activeElement === inputRef.current) {
+        inputRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "nearest",
+        });
+      }
+    };
+
+    vv.addEventListener("resize", handleViewportChange);
+    return () => vv.removeEventListener("resize", handleViewportChange);
+  }, []);
+
+  const handleFocus = () => {
+    setTimeout(() => {
+      inputRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    }, 150);
+  };
+
   return (
-    <div className="relative">
+    <div className="relative scroll-mt-24">
       <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
       <Input
+        ref={inputRef}
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        onFocus={handleFocus}
         placeholder="Search by name or phone..."
         className="h-10 pl-9 pr-10"
       />

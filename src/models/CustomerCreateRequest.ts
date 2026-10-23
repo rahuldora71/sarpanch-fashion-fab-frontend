@@ -1,3 +1,9 @@
+export interface CustomerImagePayload {
+  imageUrl: string;
+  publicId?: string;
+  purpose?: string;
+}
+
 export interface CustomerCreateRequest {
   name: string;
   phone: string;
@@ -6,4 +12,7 @@ export interface CustomerCreateRequest {
   address?: string;
   city?: string;
   notes?: string;
+  image?: string;
+  imagePublicId?: string;
+  images?: CustomerImagePayload[];
 }
