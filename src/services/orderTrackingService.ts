@@ -70,17 +70,23 @@ export interface PublicReviewRequest {
 }
 
 function getPublicApiBaseUrl(): string {
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  if (envUrl && !envUrl.includes("localhost") && !envUrl.includes("127.0.0.1")) {
+    return `${envUrl}/public/orders`;
+  }
+
   if (typeof window !== "undefined" && window.location?.hostname) {
     const hostname = window.location.hostname;
     const protocol = window.location.protocol === "https:" ? "https:" : "http:";
-    if (window.location.port === "" || window.location.port === "443" || window.location.port === "80") {
-      return `${protocol}//${hostname}/api/v1/public/orders`;
-    }
-    if (hostname !== "localhost" && hostname !== "127.0.0.1") {
+    if (
+      hostname !== "localhost" &&
+      hostname !== "127.0.0.1" &&
+      (window.location.port === "5173" || window.location.port === "3000")
+    ) {
       return `${protocol}//${hostname}:8082/api/v1/public/orders`;
     }
   }
-  const envUrl = import.meta.env.VITE_API_BASE_URL;
+
   if (envUrl) {
     return `${envUrl}/public/orders`;
   }

@@ -4,8 +4,13 @@ import { Button } from "@/components/ui/button";
 
 export default function GoogleLoginButton() {
   const handleGoogleLogin = () => {
-    window.location.href =
-      `${import.meta.env.VITE_API_BASE_URL_ROOT}/oauth2/authorization/google`;
+    const rootUrl =
+      import.meta.env.VITE_API_BASE_URL_ROOT ||
+      (import.meta.env.VITE_API_BASE_URL
+        ? import.meta.env.VITE_API_BASE_URL.replace(/\/api\/v1\/?$/, "")
+        : "http://localhost:8082");
+
+    window.location.href = `${rootUrl}/oauth2/authorization/google`;
   };
 
   return (
@@ -15,8 +20,7 @@ export default function GoogleLoginButton() {
       className="w-full"
       onClick={handleGoogleLogin}
     >
-<FcGoogle />
-
+      <FcGoogle />
       Continue with Google
     </Button>
   );

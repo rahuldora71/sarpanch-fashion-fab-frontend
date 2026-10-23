@@ -89,7 +89,7 @@ export default function LoginPage() {
 
   toast.success("Login successful!");
 
-  navigate( import.meta.env.VITE_LOGIN_SUCCESS_REDIRECT_URL, {
+  navigate(import.meta.env.VITE_LOGIN_SUCCESS_REDIRECT_URL || "/home", {
     replace: true,
   });
 } catch (error: any) {
